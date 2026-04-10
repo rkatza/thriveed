@@ -14,7 +14,7 @@ class InterventionCreate(BaseModel):
     notes: Optional[str] = None
 
 class MessageCreate(BaseModel):
-    parent_user_id: int
+    parent_user_id: Optional[int] = None
     student_id: int
     subject: str
     body: str
@@ -232,9 +232,22 @@ async def student_mastery_map(student_id: int, current_user: dict = Depends(requ
 @router.post("/message")
 async def send_message_to_parent(req: MessageCreate, current_user: dict = Depends(require_roles("coach"))):
     with get_db() as db:
+        # Resolve parent_user_id from student_id via parent_students link
+        receiver_id = req.parent_user_id
+        if not receiver_id:
+            parent_row = db.execute(
+                """SELECT p.user_id FROM parent_students ps
+                   JOIN parents p ON ps.parent_id = p.id
+                   WHERE ps.student_id = ? LIMIT 1""",
+                (req.student_id,),
+            ).fetchone()
+            if parent_row:
+                receiver_id = parent_row["user_id"]
+            else:
+                raise HTTPException(status_code=404, detail="No se encontró un padre vinculado a este estudiante")
         db.execute("""INSERT INTO messages (sender_id, receiver_id, student_id, subject, body)
                      VALUES (?, ?, ?, ?, ?)""",
-                   (current_user["user_id"], req.parent_user_id, req.student_id, req.subject, req.body))
+                   (current_user["user_id"], receiver_id, req.student_id, req.subject, req.body))
         return {"message": "Nota enviada al padre"}
 
 # ---- Pause student session ----

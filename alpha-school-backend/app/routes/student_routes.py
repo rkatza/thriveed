@@ -265,6 +265,10 @@ def get_next_placement_question(db, difficulty, answered_ids, student):
         return None
     
     result = dict(q)
+    # Remove answer-related fields to prevent cheating
+    result.pop("correct_answer", None)
+    result.pop("hint", None)
+    result.pop("explanation", None)
     if result.get("options"):
         result["options"] = json.loads(result["options"])
     return result
@@ -594,7 +598,7 @@ def find_next_skill(db, student_id):
         if mastery_dict.get(skill["id"], 0) < 0.9:
             return skill["id"]
     
-    return skills[0]["id"] if skills else None
+    return None
 
 def get_session_questions(db, skill_id, student):
     """Get questions for a daily session using Flow Engine selector + spaced repetition."""
@@ -694,9 +698,12 @@ def get_session_questions(db, skill_id, student):
         qd = q if isinstance(q, dict) else dict(q)
         if qd.get("options") and isinstance(qd["options"], str):
             qd["options"] = json.loads(qd["options"])
-        # Remove internal Flow Engine fields from response
+        # Remove internal Flow Engine fields and answer data from response
         qd.pop("_expected_p", None)
         qd.pop("_fallback", None)
+        qd.pop("correct_answer", None)
+        qd.pop("hint", None)
+        qd.pop("explanation", None)
         result.append(qd)
     
     random.shuffle(result)
