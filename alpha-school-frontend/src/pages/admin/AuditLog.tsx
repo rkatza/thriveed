@@ -33,7 +33,7 @@ export default function AuditLog() {
             {logs.map(log => (
               <tr key={log.id} className="hover:bg-gray-50">
                 <td className="px-5 py-3 text-sm text-gray-600">{new Date(log.created_at).toLocaleString('es-PA')}</td>
-                <td className="px-5 py-3 text-sm text-gray-900">{log.user_email || `User #${log.user_id}`}</td>
+                <td className="px-5 py-3 text-sm text-gray-900">{log.email || `User #${log.user_id}`}</td>
                 <td className="px-5 py-3">
                   <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                     log.action.includes('create') ? 'bg-green-100 text-green-700' :

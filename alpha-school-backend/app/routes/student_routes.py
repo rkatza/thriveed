@@ -409,7 +409,11 @@ async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(requir
 
 @router.post("/exercise/session/{session_id}/rate")
 async def rate_session(session_id: int, req: SessionRating, current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
     with get_db() as db:
+        session = db.execute("SELECT * FROM daily_sessions WHERE id = ? AND student_id = ?", (session_id, student["id"])).fetchone()
+        if not session:
+            raise HTTPException(status_code=404, detail="Sesión no encontrada")
         db.execute("UPDATE daily_sessions SET rating = ? WHERE id = ?", (req.rating, session_id))
         return {"message": "¡Gracias por tu opinión!"}
 
