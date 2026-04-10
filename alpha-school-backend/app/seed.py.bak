@@ -1,0 +1,285 @@
+import json
+from app.database import get_db
+from app.auth import hash_password
+
+def seed_database():
+    with get_db() as db:
+        # Check if already seeded
+        existing = db.execute("SELECT COUNT(*) as c FROM users").fetchone()
+        if existing["c"] > 0:
+            return
+
+        # Create school
+        db.execute("INSERT INTO schools (name, address, city, phone) VALUES (?, ?, ?, ?)",
+                   ("Colegio Alpha Panamá", "Calle 50, Bella Vista", "Ciudad de Panamá", "+507-300-1234"))
+
+        # Create grade
+        db.execute("INSERT INTO grades (school_id, name, level) VALUES (1, '4to Grado', 4)")
+
+        # Create classrooms
+        db.execute("INSERT INTO classrooms (grade_id, name, group_type) VALUES (1, 'Salón 4-A', 'treatment')")
+        db.execute("INSERT INTO classrooms (grade_id, name, group_type) VALUES (1, 'Salón 4-B', 'control')")
+
+        # Create users - Admin
+        db.execute("INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)",
+                   ("admin@alpha.edu.pa", hash_password("admin123"), "super_admin", "Director", "Pedagógico"))
+
+        # Create users - Coaches
+        db.execute("INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)",
+                   ("coach1@alpha.edu.pa", hash_password("coach123"), "coach", "María", "González"))
+        db.execute("INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)",
+                   ("coach2@alpha.edu.pa", hash_password("coach123"), "coach", "Carlos", "Rodríguez"))
+
+        # Create coach records
+        db.execute("INSERT INTO coaches (user_id, classroom_id, specialization) VALUES (2, 1, 'Matemáticas')")
+        db.execute("INSERT INTO coaches (user_id, classroom_id, specialization) VALUES (3, 2, 'Matemáticas')")
+
+        # Create students
+        student_data = [
+            ("sofia@alpha.edu.pa", "Sofía", "Martínez", 9, '["deportes","música","animales"]'),
+            ("diego@alpha.edu.pa", "Diego", "López", 10, '["videojuegos","dinosaurios","espacio"]'),
+            ("valentina@alpha.edu.pa", "Valentina", "Pérez", 9, '["arte","cocina","naturaleza"]'),
+            ("mateo@alpha.edu.pa", "Mateo", "García", 10, '["deportes","carros","videojuegos"]'),
+            ("camila@alpha.edu.pa", "Camila", "Hernández", 9, '["música","arte","animales"]'),
+            ("santiago@alpha.edu.pa", "Santiago", "Díaz", 10, '["espacio","dinosaurios","naturaleza"]'),
+            ("isabella@alpha.edu.pa", "Isabella", "Torres", 9, '["cocina","deportes","música"]'),
+            ("sebastian@alpha.edu.pa", "Sebastián", "Ramírez", 10, '["videojuegos","carros","deportes"]'),
+        ]
+
+        avatars = ['🧒', '👧', '👦', '🧑', '👧', '👦', '🧒', '🧑']
+
+        for i, (email, first, last, age, interests) in enumerate(student_data):
+            uid = i + 4  # user_id starts at 4
+            db.execute("INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)",
+                       (email, hash_password("student123"), "student", first, last))
+            classroom_id = 1 if i < 5 else 2
+            db.execute("INSERT INTO students (user_id, classroom_id, nickname, avatar_url, age, interests) VALUES (?, ?, ?, ?, ?, ?)",
+                       (uid, classroom_id, first, avatars[i], age, interests))
+
+        # Create parents
+        parent_data = [
+            ("padre.martinez@gmail.com", "Roberto", "Martínez", "+507-6000-1001"),
+            ("madre.lopez@gmail.com", "Ana", "López", "+507-6000-1002"),
+            ("padre.perez@gmail.com", "Juan", "Pérez", "+507-6000-1003"),
+            ("madre.garcia@gmail.com", "Laura", "García", "+507-6000-1004"),
+        ]
+
+        for i, (email, first, last, phone) in enumerate(parent_data):
+            uid = len(student_data) + 4 + i  # after students
+            db.execute("INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, ?, ?, ?)",
+                       (email, hash_password("parent123"), "parent", first, last))
+            db.execute("INSERT INTO parents (user_id, phone) VALUES (?, ?)", (uid, phone))
+
+        # Link parents to students
+        db.execute("INSERT INTO parent_students (parent_id, student_id) VALUES (1, 1)")  # Roberto -> Sofía
+        db.execute("INSERT INTO parent_students (parent_id, student_id) VALUES (2, 2)")  # Ana -> Diego
+        db.execute("INSERT INTO parent_students (parent_id, student_id) VALUES (3, 3)")  # Juan -> Valentina
+        db.execute("INSERT INTO parent_students (parent_id, student_id) VALUES (4, 4)")  # Laura -> Mateo
+
+        # ===========================================
+        # MATH SKILLS TREE - 4th Grade Panama
+        # ===========================================
+        skills_data = [
+            # Category: Números y valor posicional
+            (1, "Lectura de números hasta 10,000", "Leer y escribir números naturales hasta 10,000", "numeros", 1, None, 1),
+            (2, "Valor posicional", "Identificar unidades, decenas, centenas y millares", "numeros", 1, 1, 2),
+            (3, "Comparación de números", "Comparar números usando >, < e =", "numeros", 2, 2, 3),
+            (4, "Ordenar números", "Ordenar números de menor a mayor y viceversa", "numeros", 2, 3, 4),
+            (5, "Redondeo", "Redondear números a la decena y centena más cercana", "numeros", 3, 4, 5),
+            # Category: Suma
+            (6, "Suma básica", "Sumar números de un dígito", "operaciones", 1, None, 6),
+            (7, "Suma con reagrupación", "Sumar números de dos dígitos con reagrupación", "operaciones", 2, 6, 7),
+            (8, "Suma de tres dígitos", "Sumar números de tres dígitos", "operaciones", 2, 7, 8),
+            (9, "Suma de cuatro dígitos", "Sumar números de hasta cuatro dígitos", "operaciones", 3, 8, 9),
+            (10, "Propiedades de la suma", "Conmutativa, asociativa, elemento neutro", "operaciones", 3, 9, 10),
+            # Category: Resta
+            (11, "Resta básica", "Restar números de un dígito", "operaciones", 1, None, 11),
+            (12, "Resta con reagrupación", "Restar con préstamo", "operaciones", 2, 11, 12),
+            (13, "Resta de tres dígitos", "Restar números de tres dígitos", "operaciones", 2, 12, 13),
+            (14, "Resta de cuatro dígitos", "Restar números de hasta cuatro dígitos", "operaciones", 3, 13, 14),
+            # Category: Multiplicación
+            (15, "Tablas del 1-5", "Multiplicación básica tablas 1 a 5", "multiplicacion", 1, None, 15),
+            (16, "Tablas del 6-9", "Multiplicación tablas 6 a 9", "multiplicacion", 2, 15, 16),
+            (17, "Multiplicación por 10, 100", "Multiplicar por potencias de 10", "multiplicacion", 2, 16, 17),
+            (18, "Multiplicación de dos dígitos", "Multiplicar números de dos dígitos", "multiplicacion", 3, 17, 18),
+            (19, "Propiedades de la multiplicación", "Conmutativa, asociativa, distributiva", "multiplicacion", 3, 18, 19),
+            # Category: División
+            (20, "División básica", "Dividir números simples", "division", 1, 15, 20),
+            (21, "División con residuo", "División con residuo", "division", 2, 20, 21),
+            (22, "División de dos dígitos", "Dividir entre divisores de dos dígitos", "division", 3, 21, 22),
+            # Category: Fracciones
+            (23, "Concepto de fracción", "Entender numerador y denominador", "fracciones", 1, None, 23),
+            (24, "Fracciones equivalentes", "Identificar fracciones equivalentes", "fracciones", 2, 23, 24),
+            (25, "Comparar fracciones", "Comparar fracciones con mismo denominador", "fracciones", 2, 24, 25),
+            (26, "Suma de fracciones", "Sumar fracciones con mismo denominador", "fracciones", 3, 25, 26),
+            # Category: Geometría
+            (27, "Figuras geométricas", "Identificar triángulos, cuadrados, rectángulos, círculos", "geometria", 1, None, 27),
+            (28, "Perímetro", "Calcular el perímetro de figuras simples", "geometria", 2, 27, 28),
+            (29, "Área", "Calcular el área de rectángulos y cuadrados", "geometria", 3, 28, 29),
+            # Category: Resolución de problemas
+            (30, "Problemas de suma y resta", "Resolver problemas verbales con suma y resta", "problemas", 2, 8, 30),
+            (31, "Problemas de multiplicación", "Resolver problemas verbales con multiplicación", "problemas", 3, 18, 31),
+            (32, "Problemas multi-paso", "Resolver problemas que requieren más de una operación", "problemas", 4, 31, 32),
+        ]
+
+        for s in skills_data:
+            db.execute("INSERT INTO skills (id, name, description, category, difficulty_level, prerequisite_skill_id, order_index) VALUES (?, ?, ?, ?, ?, ?, ?)", s)
+
+        # ===========================================
+        # PLACEMENT TEST QUESTIONS (by skill)
+        # ===========================================
+        placement_questions = [
+            # Números - Level 1
+            (1, "¿Cuál es el número tres mil cuatrocientos veinticinco?", "multiple_choice",
+             '["3,425","3,245","3,524","3,452"]', "3,425", "Piensa en cada palabra: tres mil = 3000, cuatrocientos = 400, veinticinco = 25",
+             "Tres mil = 3,000 + cuatrocientos = 400 + veinticinco = 25 = 3,425", 1, '["general"]'),
+            (2, "En el número 5,738, ¿qué dígito está en la posición de las centenas?", "multiple_choice",
+             '["5","7","3","8"]', "7", "Las centenas son el tercer dígito de derecha a izquierda",
+             "En 5,738: 8=unidades, 3=decenas, 7=centenas, 5=millares", 1, '["general"]'),
+            (3, "¿Cuál es mayor: 4,589 o 4,598?", "multiple_choice",
+             '["4,589","4,598","Son iguales","No se puede saber"]', "4,598",
+             "Compara dígito por dígito de izquierda a derecha", "Los millares y centenas son iguales. En las decenas: 9 > 8, así que 4,598 > 4,589", 2, '["general"]'),
+            # Suma - Level 1-2
+            (6, "¿Cuánto es 47 + 35?", "numeric", '[]', "82",
+             "Suma primero las unidades: 7+5=12, lleva 1", "47 + 35 = 82", 1, '["general"]'),
+            (7, "En un partido de fútbol, el equipo anotó 156 goles en la primera temporada y 287 en la segunda. ¿Cuántos goles anotaron en total?", "numeric", '[]', "443",
+             "Suma 156 + 287 paso a paso", "156 + 287 = 443 goles en total", 2, '["deportes"]'),
+            (8, "Una tienda vendió 1,245 empanadas el lunes y 2,876 el martes. ¿Cuántas empanadas vendió en total?", "numeric", '[]', "4121",
+             "Suma dígito por dígito empezando por las unidades", "1,245 + 2,876 = 4,121", 3, '["cocina"]'),
+            # Resta - Level 1-2
+            (11, "¿Cuánto es 83 - 47?", "numeric", '[]', "36",
+             "Necesitas pedir prestado: 13-7=6, 7-4=3", "83 - 47 = 36", 1, '["general"]'),
+            (12, "Un dinosaurio pesaba 5,400 kg y otro pesaba 2,750 kg. ¿Cuál es la diferencia de peso?", "numeric", '[]', "2650",
+             "Resta 5,400 - 2,750", "5,400 - 2,750 = 2,650 kg de diferencia", 2, '["dinosaurios"]'),
+            # Multiplicación - Level 1-3
+            (15, "¿Cuánto es 7 × 4?", "numeric", '[]', "28",
+             "Piensa: 7 grupos de 4, o 4 grupos de 7", "7 × 4 = 28", 1, '["general"]'),
+            (16, "¿Cuánto es 8 × 9?", "numeric", '[]', "72",
+             "Piensa: 8 × 9 es igual a 8 × 10 - 8", "8 × 9 = 72", 2, '["general"]'),
+            (17, "En un estacionamiento hay 15 filas de carros con 12 carros cada una. ¿Cuántos carros hay en total?", "numeric", '[]', "180",
+             "Multiplica 15 × 12", "15 × 12 = 180 carros", 3, '["carros"]'),
+            # División - Level 2-3
+            (20, "Si tienes 56 stickers y los repartes entre 8 amigos, ¿cuántos le tocan a cada uno?", "numeric", '[]', "7",
+             "Divide: 56 ÷ 8", "56 ÷ 8 = 7 stickers para cada amigo", 2, '["general"]'),
+            (21, "¿Cuánto es 75 ÷ 4?", "multiple_choice",
+             '["18 residuo 3","19 residuo 1","18 residuo 1","19 residuo 3"]', "18 residuo 3",
+             "4 × 18 = 72, y 75 - 72 = 3", "75 ÷ 4 = 18 con residuo 3", 2, '["general"]'),
+            # Fracciones - Level 1-3
+            (23, "Si una pizza tiene 8 rebanadas y te comes 3, ¿qué fracción te comiste?", "multiple_choice",
+             '["3/8","5/8","3/5","8/3"]', "3/8",
+             "El denominador es el total de rebanadas, el numerador es lo que comiste",
+             "Comiste 3 de 8 rebanadas = 3/8", 1, '["cocina"]'),
+            (25, "¿Cuál es mayor: 3/7 o 5/7?", "multiple_choice",
+             '["3/7","5/7","Son iguales","No se puede comparar"]', "5/7",
+             "Cuando el denominador es igual, compara los numeradores", "5/7 > 3/7 porque 5 > 3", 2, '["general"]'),
+            (26, "¿Cuánto es 2/9 + 4/9?", "multiple_choice",
+             '["6/18","6/9","2/3","6/9 = 2/3"]', "6/9",
+             "Cuando los denominadores son iguales, suma los numeradores", "2/9 + 4/9 = 6/9", 3, '["general"]'),
+            # Geometría
+            (27, "¿Cuántos lados tiene un triángulo?", "numeric", '[]', "3",
+             "Tri = tres", "Un triángulo tiene 3 lados", 1, '["general"]'),
+            (28, "Un campo de fútbol mide 100 metros de largo y 60 metros de ancho. ¿Cuál es su perímetro?", "numeric", '[]', "320",
+             "El perímetro es la suma de todos los lados", "P = 2 × (100 + 60) = 2 × 160 = 320 metros", 2, '["deportes"]'),
+            (29, "¿Cuál es el área de un rectángulo de 12 cm de largo y 5 cm de ancho?", "numeric", '[]', "60",
+             "Área = largo × ancho", "A = 12 × 5 = 60 cm²", 3, '["general"]'),
+            # Problemas
+            (30, "María tiene 345 balboas y gasta 128 balboas en un libro. Luego recibe 75 balboas de regalo. ¿Cuántos balboas tiene ahora?", "numeric", '[]', "292",
+             "Primero resta lo que gastó, luego suma lo que recibió", "345 - 128 = 217, luego 217 + 75 = 292 balboas", 3, '["general"]'),
+        ]
+
+        for q in placement_questions:
+            db.execute("""INSERT INTO questions (skill_id, question_text, question_type, options, correct_answer, hint, explanation, difficulty, is_placement, interest_tags) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""", q)
+
+        # ===========================================
+        # EXERCISE QUESTIONS (regular lessons)
+        # ===========================================
+        exercise_questions = [
+            # Suma básica exercises
+            (6, "¿Cuánto es 23 + 19?", "numeric", '[]', "42", "Suma las unidades primero", "23 + 19 = 42", 1, '["general"]'),
+            (6, "¿Cuánto es 56 + 37?", "numeric", '[]', "93", "6+7=13, lleva 1", "56 + 37 = 93", 1, '["general"]'),
+            (6, "En un zoológico hay 28 monos y 35 loros. ¿Cuántos animales hay?", "numeric", '[]', "63", "Suma 28 + 35", "28 + 35 = 63 animales", 1, '["animales"]'),
+            (7, "¿Cuánto es 167 + 245?", "numeric", '[]', "412", "Suma columna por columna", "167 + 245 = 412", 2, '["general"]'),
+            (7, "Un cohete viajó 589 km el primer día y 673 km el segundo. ¿Cuántos km viajó en total?", "numeric", '[]', "1262", "Suma 589 + 673", "589 + 673 = 1,262 km", 2, '["espacio"]'),
+            # Multiplicación exercises
+            (15, "¿Cuánto es 3 × 5?", "numeric", '[]', "15", "3 grupos de 5", "3 × 5 = 15", 1, '["general"]'),
+            (15, "¿Cuánto es 4 × 4?", "numeric", '[]', "16", "4 grupos de 4", "4 × 4 = 16", 1, '["general"]'),
+            (15, "Si cada dinosaurio tiene 4 patas, ¿cuántas patas tienen 5 dinosaurios?", "numeric", '[]', "20", "Multiplica 5 × 4", "5 × 4 = 20 patas", 1, '["dinosaurios"]'),
+            (16, "¿Cuánto es 6 × 7?", "numeric", '[]', "42", "6 × 7 es 6 × 6 + 6", "6 × 7 = 42", 2, '["general"]'),
+            (16, "¿Cuánto es 9 × 8?", "numeric", '[]', "72", "9 × 8 = 9 × (10-2)", "9 × 8 = 72", 2, '["general"]'),
+            (16, "Un músico practica 7 canciones al día. ¿Cuántas canciones practica en 8 días?", "numeric", '[]', "56", "Multiplica 7 × 8", "7 × 8 = 56 canciones", 2, '["música"]'),
+            (17, "¿Cuánto es 34 × 10?", "numeric", '[]', "340", "Agrega un cero al final", "34 × 10 = 340", 2, '["general"]'),
+            (18, "¿Cuánto es 23 × 14?", "numeric", '[]', "322", "23×4=92, 23×10=230, suma", "23 × 14 = 322", 3, '["general"]'),
+            # Fracciones exercises
+            (23, "Si una barra de chocolate tiene 6 pedazos y te dan 2, ¿qué fracción tienes?", "multiple_choice",
+             '["2/6","4/6","6/2","2/4"]', "2/6", "Numerador = pedazos que tienes, denominador = total", "2 de 6 = 2/6", 1, '["cocina"]'),
+            (23, "¿Qué fracción de un día son 6 horas?", "multiple_choice",
+             '["6/24","6/12","1/4","6/24 = 1/4"]', "6/24", "Un día tiene 24 horas", "6 horas de 24 = 6/24", 1, '["general"]'),
+            # Geometría exercises
+            (27, "¿Cuántos lados tiene un rectángulo?", "numeric", '[]', "4", "Rec-tángulo tiene 4 ángulos rectos", "4 lados", 1, '["general"]'),
+            (28, "Un cuadrado tiene lados de 8 cm. ¿Cuál es su perímetro?", "numeric", '[]', "32", "P = 4 × lado", "4 × 8 = 32 cm", 2, '["general"]'),
+            (29, "Una cancha de básquet mide 15m × 8m. ¿Cuál es su área?", "numeric", '[]', "120", "Área = largo × ancho", "15 × 8 = 120 m²", 3, '["deportes"]'),
+        ]
+
+        for q in exercise_questions:
+            db.execute("""INSERT INTO questions (skill_id, question_text, question_type, options, correct_answer, hint, explanation, difficulty, is_placement, interest_tags) 
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)""", q)
+
+        # Create lessons for each skill
+        for s in skills_data:
+            db.execute("INSERT INTO lessons (skill_id, title, description, difficulty, estimated_minutes) VALUES (?, ?, ?, ?, ?)",
+                       (s[0], f"Lección: {s[1]}", s[2], s[4], 5))
+
+        # Create some mastery signals for existing students (simulate some progress)
+        # Sofia (student 1) has some mastery
+        mastery_data = [
+            (1, 1, 0.95, 10, 9),  # Lectura de números
+            (1, 2, 0.85, 8, 7),   # Valor posicional
+            (1, 6, 0.90, 12, 11), # Suma básica
+            (1, 7, 0.75, 8, 6),   # Suma con reagrupación
+            (1, 11, 0.88, 10, 9), # Resta básica
+            (1, 15, 0.92, 15, 14),# Tablas 1-5
+        ]
+        # Diego (student 2) has some mastery
+        mastery_data += [
+            (2, 1, 0.90, 8, 7),
+            (2, 6, 0.95, 10, 9),
+            (2, 7, 0.80, 6, 5),
+            (2, 11, 0.70, 10, 7),
+            (2, 15, 0.60, 5, 3),
+        ]
+        # Valentina (student 3)
+        mastery_data += [
+            (3, 1, 0.88, 8, 7),
+            (3, 2, 0.90, 10, 9),
+            (3, 6, 0.85, 8, 7),
+            (3, 11, 0.92, 12, 11),
+        ]
+
+        for m in mastery_data:
+            db.execute("""INSERT INTO mastery_signals (student_id, skill_id, mastery_level, attempts_count, correct_count, last_practiced)
+                         VALUES (?, ?, ?, ?, ?, datetime('now'))""", m)
+
+        # Mark first 3 students as having completed placement test
+        for sid in [1, 2, 3]:
+            db.execute("UPDATE students SET placement_test_completed = 1, placement_test_score = ? WHERE id = ?",
+                       (85.0 + sid * 2, sid))
+
+        # Create some daily sessions
+        db.execute("""INSERT INTO daily_sessions (student_id, target_skill_id, mission_title, status, total_questions, correct_answers, active_time_seconds, session_date)
+                     VALUES (1, 7, 'Domina la suma con reagrupación', 'completed', 10, 8, 1200, date('now'))""")
+        db.execute("""INSERT INTO daily_sessions (student_id, target_skill_id, mission_title, status, total_questions, correct_answers, active_time_seconds, session_date)
+                     VALUES (2, 15, 'Aprende las tablas del 1 al 5', 'in_progress', 8, 5, 900, date('now'))""")
+        db.execute("""INSERT INTO daily_sessions (student_id, target_skill_id, mission_title, status, total_questions, correct_answers, active_time_seconds, session_date)
+                     VALUES (3, 11, 'Practica la resta básica', 'completed', 12, 11, 1100, date('now'))""")
+
+        # Create sample messages
+        db.execute("""INSERT INTO messages (sender_id, receiver_id, student_id, subject, body)
+                     VALUES (2, 12, 1, 'Progreso de Sofía', 'Sofía tuvo un excelente día hoy. Dominó la suma con reagrupación sin ayuda.')""")
+
+        # Achievements
+        db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (1, 'Primera Misión', 'Completaste tu primera misión diaria', '🎯')")
+        db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (1, 'Racha de 3', 'Tres respuestas correctas seguidas', '🔥')")
+        db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (2, 'Explorador', 'Completaste el placement test', '🗺️')")
+
+        print("Database seeded successfully!")
