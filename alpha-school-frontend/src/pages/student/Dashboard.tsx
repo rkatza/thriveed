@@ -34,13 +34,21 @@ export default function StudentDashboard() {
       ]);
       setMission(m);
       setProfile(p);
+      // Clear previous answer state
+      setFeedback(null);
+      setSelectedAnswer(null);
+      setNumericAnswer('');
       const qs = m.questions || m.exercises || [];
       if (qs.length > 0) {
         // Filter out already-answered questions
         const unanswered = qs.filter((q: any) => !(m.answered_ids || []).includes(q.id));
         if (unanswered.length > 0) {
           setExercise(unanswered[0]);
+        } else {
+          setExercise(null);
         }
+      } else {
+        setExercise(null);
       }
     } catch (err) {
       console.error(err);
@@ -100,8 +108,8 @@ export default function StudentDashboard() {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
 
   const sessionData = mission?.session || mission || {};
-  const totalQuestions = mission?.total_questions || sessionData?.total_questions || 0;
-  const answeredCount = mission?.answered_ids?.length || sessionData?.total_questions || 0;
+  const totalQuestions = mission?.total_questions || sessionData?.total_questions || 8;
+  const answeredCount = mission?.answered_ids?.length || 0;
   const missionProgress = mission?.progress || { completed: answeredCount, total: totalQuestions };
   const progressPercent = missionProgress.total > 0 ? (missionProgress.completed / missionProgress.total) * 100 : 0;
 
