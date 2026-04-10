@@ -22,8 +22,8 @@ export default function ParentSkills() {
     api.get('/api/parent/children').then(data => {
       setChildren(data);
       if (data.length > 0) {
-        setSelectedChild(data[0].student_id);
-        loadSkills(data[0].student_id);
+        setSelectedChild(data[0].id);
+        loadSkills(data[0].id);
       } else {
         setLoading(false);
       }
@@ -48,7 +48,7 @@ export default function ParentSkills() {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div></div>;
 
   const categories = [...new Set(skills.map(s => s.category))];
-  const child = children.find(c => c.student_id === selectedChild);
+  const child = children.find(c => c.id === selectedChild);
 
   return (
     <div>
@@ -60,9 +60,9 @@ export default function ParentSkills() {
         {children.length > 1 && (
           <div className="flex gap-2">
             {children.map(c => (
-              <button key={c.student_id} onClick={() => switchChild(c.student_id)}
+              <button key={c.id} onClick={() => switchChild(c.id)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-medium transition ${
-                  selectedChild === c.student_id ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
+                  selectedChild === c.id ? 'bg-amber-600 text-white' : 'bg-gray-100 text-gray-700'
                 }`}>
                 {c.first_name}
               </button>

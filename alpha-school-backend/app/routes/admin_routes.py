@@ -185,9 +185,9 @@ async def list_students(classroom_id: Optional[int] = None, current_user: dict =
                    LEFT JOIN classrooms c ON s.classroom_id = c.id
                    LEFT JOIN grades g ON c.grade_id = g.id"""
         if classroom_id:
-            query += f" WHERE s.classroom_id = {classroom_id}"
+            query += " WHERE s.classroom_id = ?"
         query += " ORDER BY u.last_name, u.first_name"
-        students = db.execute(query).fetchall()
+        students = db.execute(query, (classroom_id,) if classroom_id else ()).fetchall()
         return [dict(s) for s in students]
 
 @router.get("/students/{student_id}")
@@ -473,7 +473,7 @@ async def revoke_invitation(invitation_id: int, current_user: dict = Depends(req
         return {"message": "Invitacion revocada"}
 
 @router.post("/invitations/{invitation_id}/accept")
-async def accept_invitation(invitation_id: int):
+async def accept_invitation(invitation_id: int, current_user: dict = Depends(require_roles("super_admin", "admin"))):
     """Accept an invitation and create the user account"""
     with get_db() as db:
         inv = db.execute("SELECT * FROM invitations WHERE id = ?", (invitation_id,)).fetchone()

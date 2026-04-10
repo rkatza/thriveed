@@ -4,10 +4,11 @@ import { api } from '../../lib/api';
 import { ArrowLeft, Target, BookOpen, MessageSquare, AlertTriangle } from 'lucide-react';
 
 const INTERVENTION_TAGS = [
-  { value: 'motivacional', label: 'Motivacional', color: 'bg-blue-100 text-blue-700' },
-  { value: 'conceptual', label: 'Conceptual', color: 'bg-purple-100 text-purple-700' },
-  { value: 'tecnico', label: 'Técnico', color: 'bg-amber-100 text-amber-700' },
-  { value: 'comportamiento', label: 'Comportamiento', color: 'bg-red-100 text-red-700' },
+  { value: 'frustration', label: 'Frustración', color: 'bg-blue-100 text-blue-700' },
+  { value: 'conceptual_doubt', label: 'Duda Conceptual', color: 'bg-purple-100 text-purple-700' },
+  { value: 'distraction', label: 'Distracción', color: 'bg-amber-100 text-amber-700' },
+  { value: 'personal', label: 'Personal', color: 'bg-red-100 text-red-700' },
+  { value: 'other', label: 'Otro', color: 'bg-gray-100 text-gray-700' },
 ];
 
 export default function CoachStudentDetail() {
@@ -16,7 +17,7 @@ export default function CoachStudentDetail() {
   const [data, setData] = useState<any>(null);
   const [mastery, setMastery] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [interventionTag, setInterventionTag] = useState('motivacional');
+  const [interventionTag, setInterventionTag] = useState('frustration');
   const [interventionNotes, setInterventionNotes] = useState('');
   const [sending, setSending] = useState(false);
 

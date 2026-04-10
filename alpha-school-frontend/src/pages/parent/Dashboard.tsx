@@ -13,8 +13,8 @@ export default function ParentDashboard() {
     api.get('/api/parent/children').then(data => {
       setChildren(data);
       if (data.length > 0) {
-        setSelectedChild(data[0].student_id);
-        loadChildData(data[0].student_id);
+        setSelectedChild(data[0].id);
+        loadChildData(data[0].id);
       } else {
         setLoading(false);
       }
@@ -42,7 +42,7 @@ export default function ParentDashboard() {
     loadChildData(childId);
   };
 
-  const child = children.find(c => c.student_id === selectedChild);
+  const child = children.find(c => c.id === selectedChild);
 
   if (loading && !today) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div></div>;
 
@@ -52,9 +52,9 @@ export default function ParentDashboard() {
       {children.length > 1 && (
         <div className="flex gap-2 mb-6">
           {children.map(c => (
-            <button key={c.student_id} onClick={() => switchChild(c.student_id)}
+            <button key={c.id} onClick={() => switchChild(c.id)}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition ${
-                selectedChild === c.student_id ? 'bg-amber-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                selectedChild === c.id ? 'bg-amber-600 text-white' : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
               }`}>
               <span>{c.avatar_url || '🧒'}</span>
               {c.first_name}

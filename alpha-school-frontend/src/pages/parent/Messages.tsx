@@ -7,22 +7,43 @@ export default function ParentMessages() {
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [coachId, setCoachId] = useState<number | null>(null);
+  const [studentId, setStudentId] = useState<number | null>(null);
 
   useEffect(() => {
-    api.get('/api/parent/messages').then(setMessages).finally(() => setLoading(false));
+    // Load messages and find the coach/student for sending
+    Promise.all([
+      api.get('/api/parent/messages'),
+      api.get('/api/parent/children'),
+    ]).then(([msgs, children]) => {
+      setMessages(msgs);
+      if (children.length > 0) {
+        setStudentId(children[0].id);
+        // Try to find coach from the child's classroom
+        if (children[0].classroom_id) {
+          // Look for coach in received messages, or use a default
+          const coachMsg = msgs.find((m: any) => m.sender_id !== undefined && m.receiver_first);
+          if (coachMsg) {
+            setCoachId(coachMsg.sender_id);
+          }
+        }
+      }
+    }).finally(() => setLoading(false));
   }, []);
 
   const sendMessage = async () => {
     if (!newMessage.trim()) return;
     setSending(true);
     try {
-      await api.post('/api/parent/messages', { message: newMessage });
-      setMessages(prev => [...prev, {
-        id: Date.now(),
-        message: newMessage,
-        sender_role: 'parent',
-        created_at: new Date().toISOString(),
-      }]);
+      await api.post('/api/parent/messages', {
+        receiver_id: coachId || 1,
+        student_id: studentId || 1,
+        subject: 'Mensaje del padre',
+        body: newMessage,
+      });
+      // Reload messages to get the full data
+      const msgs = await api.get('/api/parent/messages');
+      setMessages(msgs);
       setNewMessage('');
     } finally {
       setSending(false);
