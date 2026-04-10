@@ -48,9 +48,11 @@ def select_next_question(
     streak: StreakState,
     interest_tags: Optional[list[str]] = None,
     session_id: Optional[str] = None,
+    exclude_ids: Optional[set[int]] = None,
 ) -> Optional[dict]:
     p_min, p_max = current_flow_band(streak)
     interest_tags = interest_tags or []
+    exclude_ids = exclude_ids or set()
 
     rows = []
     fallback_used = 0
@@ -79,7 +81,7 @@ def select_next_question(
             """,
             (skill_id, b_low, b_high, student_id),
         )
-        rows = [dict(r) for r in cur.fetchall()]
+        rows = [dict(r) for r in cur.fetchall() if r["id"] not in exclude_ids]
         if rows:
             break
         fallback_used = widen + 1
@@ -124,8 +126,6 @@ def select_next_question(
             session_id,
         ),
     )
-    conn.commit()
-
     chosen["_expected_p"] = expected
     chosen["_fallback"] = fallback_used
     return chosen

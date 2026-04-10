@@ -433,7 +433,7 @@ async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(requir
                     str(session["id"])))
         
         # Check if session is complete (8+ questions answered with >=90% accuracy)
-        session_total = session["total_questions"] or 8
+        session_total = 8
         all_answered = total_q >= session_total
         accuracy = (correct_q / total_q * 100) if total_q > 0 else 0
         session_complete = all_answered and accuracy >= 90
@@ -624,6 +624,7 @@ def get_session_questions(db, skill_id, student):
             streak=streak,
             interest_tags=interests,
             session_id=session_id_str,
+            exclude_ids=seen_ids,
         )
         if q and q["id"] not in seen_ids:
             main_qs.append(q)
@@ -687,6 +688,7 @@ def get_session_questions(db, skill_id, student):
             streak=StreakState(),
             interest_tags=interests,
             session_id=session_id_str,
+            exclude_ids=seen_ids,
         )
         if q and q["id"] not in seen_ids:
             review_qs.append(q)
