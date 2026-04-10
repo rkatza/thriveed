@@ -16,6 +16,7 @@ export default function StudentDashboard() {
   const [answering, setAnswering] = useState(false);
   const [helpSent, setHelpSent] = useState(false);
   const [numericAnswer, setNumericAnswer] = useState('');
+  const [localAnswered, setLocalAnswered] = useState(0);
 
   useEffect(() => {
     // Check if placement test is needed
@@ -38,6 +39,8 @@ export default function StudentDashboard() {
       setFeedback(null);
       setSelectedAnswer(null);
       setNumericAnswer('');
+      // Sync local answered count with server
+      setLocalAnswered((m.answered_ids || []).length);
       const qs = m.questions || m.exercises || [];
       if (qs.length > 0) {
         // Filter out already-answered questions
@@ -68,29 +71,29 @@ export default function StudentDashboard() {
         time_spent_seconds: 30,
       });
       setFeedback(result);
-
-      setTimeout(() => {
-        // Move to next exercise
-        const qs = mission.questions || mission.exercises || [];
-        if (qs.length > 0) {
-          const currentIdx = qs.findIndex((e: any) => e.id === exercise.id);
-          if (currentIdx < qs.length - 1) {
-            setExercise(qs[currentIdx + 1]);
-            setSelectedAnswer(null);
-            setNumericAnswer('');
-            setFeedback(null);
-          } else if (result.session_complete) {
-            // Mission complete - reload
-            loadData();
-          } else {
-            // More questions needed - reload
-            loadData();
-          }
-        }
-        setAnswering(false);
-      }, 2000);
+      setLocalAnswered(prev => prev + 1);
+      setAnswering(false);
     } catch {
       setAnswering(false);
+    }
+  };
+
+  const goToNextQuestion = () => {
+    const qs = mission.questions || mission.exercises || [];
+    if (qs.length > 0) {
+      const currentIdx = qs.findIndex((e: any) => e.id === exercise.id);
+      if (currentIdx < qs.length - 1) {
+        setExercise(qs[currentIdx + 1]);
+        setSelectedAnswer(null);
+        setNumericAnswer('');
+        setFeedback(null);
+      } else if (feedback?.session_complete) {
+        // Mission complete - reload
+        loadData();
+      } else {
+        // More questions needed - reload
+        loadData();
+      }
     }
   };
 
@@ -109,7 +112,7 @@ export default function StudentDashboard() {
 
   const sessionData = mission?.session || mission || {};
   const totalQuestions = mission?.total_questions || sessionData?.total_questions || 8;
-  const answeredCount = mission?.answered_ids?.length || 0;
+  const answeredCount = localAnswered || mission?.answered_ids?.length || 0;
   const missionProgress = mission?.progress || { completed: answeredCount, total: totalQuestions };
   const progressPercent = missionProgress.total > 0 ? (missionProgress.completed / missionProgress.total) * 100 : 0;
 
@@ -255,11 +258,16 @@ export default function StudentDashboard() {
                 </div>
               )}
 
-              {/* Submit button */}
-              {!feedback && (
+              {/* Submit / Next button */}
+              {!feedback ? (
                 <button onClick={submitAnswer} disabled={!selectedAnswer || answering}
                   className="w-full py-4 bg-indigo-600 text-white rounded-xl font-semibold text-lg hover:bg-indigo-700 transition disabled:opacity-50">
                   {answering ? <Loader2 className="animate-spin mx-auto" /> : 'Confirmar Respuesta'}
+                </button>
+              ) : (
+                <button onClick={goToNextQuestion}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-xl font-semibold text-lg hover:bg-indigo-700 transition">
+                  Siguiente →
                 </button>
               )}
             </div>
