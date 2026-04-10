@@ -15,6 +15,7 @@ export default function StudentDashboard() {
   const [loading, setLoading] = useState(true);
   const [answering, setAnswering] = useState(false);
   const [helpSent, setHelpSent] = useState(false);
+  const [numericAnswer, setNumericAnswer] = useState('');
 
   useEffect(() => {
     // Check if placement test is needed
@@ -68,6 +69,7 @@ export default function StudentDashboard() {
           if (currentIdx < qs.length - 1) {
             setExercise(qs[currentIdx + 1]);
             setSelectedAnswer(null);
+            setNumericAnswer('');
             setFeedback(null);
           } else if (result.session_complete) {
             // Mission complete - reload
@@ -173,32 +175,66 @@ export default function StudentDashboard() {
               {/* Question */}
               <h2 className="text-xl font-semibold text-gray-900 mb-6">{exercise.question_text}</h2>
 
-              {/* Options */}
-              <div className="grid grid-cols-1 gap-3 mb-6">
-                {(Array.isArray(exercise.options) ? exercise.options : JSON.parse(exercise.options || '[]')).map((opt: string, idx: number) => {
-                  const isSelected = selectedAnswer === opt;
-                  const showFeedback = feedback !== null;
-                  const isCorrectOption = showFeedback && opt === (feedback.correct_answer || exercise.correct_answer);
-                  const isWrongSelected = showFeedback && isSelected && !feedback.is_correct;
-
+              {/* Options or numeric input */}
+              {(() => {
+                const opts = Array.isArray(exercise.options) ? exercise.options : JSON.parse(exercise.options || '[]');
+                const isNumeric = exercise.question_type === 'numeric' || opts.length === 0;
+                
+                if (isNumeric) {
                   return (
-                    <button key={idx}
-                      onClick={() => !feedback && setSelectedAnswer(opt)}
-                      disabled={!!feedback}
-                      className={`p-4 rounded-xl border-2 text-left transition font-medium text-lg
-                        ${isCorrectOption ? 'border-green-500 bg-green-50 text-green-700' :
-                          isWrongSelected ? 'border-red-500 bg-red-50 text-red-700' :
-                          isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
-                          'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
-                      <div className="flex items-center justify-between">
-                        <span>{opt}</span>
-                        {isCorrectOption && <CheckCircle size={20} className="text-green-500" />}
-                        {isWrongSelected && <XCircle size={20} className="text-red-500" />}
+                    <div className="mb-6">
+                      <div className="flex gap-3">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={numericAnswer}
+                          onChange={(e) => {
+                            setNumericAnswer(e.target.value);
+                            setSelectedAnswer(e.target.value);
+                          }}
+                          disabled={!!feedback}
+                          placeholder="Escribe tu respuesta..."
+                          className={`flex-1 p-4 rounded-xl border-2 text-lg font-medium transition
+                            ${feedback ? (feedback.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50') :
+                              'border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200'}`}
+                          onKeyDown={(e) => { if (e.key === 'Enter' && selectedAnswer && !feedback) submitAnswer(); }}
+                        />
                       </div>
-                    </button>
+                      {feedback && !feedback.is_correct && (
+                        <p className="mt-2 text-sm text-gray-500">Respuesta correcta: <span className="font-semibold text-green-600">{feedback.correct_answer}</span></p>
+                      )}
+                    </div>
                   );
-                })}
-              </div>
+                }
+                
+                return (
+                  <div className="grid grid-cols-1 gap-3 mb-6">
+                    {opts.map((opt: string, idx: number) => {
+                      const isSelected = selectedAnswer === opt;
+                      const showFeedback = feedback !== null;
+                      const isCorrectOption = showFeedback && opt === (feedback.correct_answer || exercise.correct_answer);
+                      const isWrongSelected = showFeedback && isSelected && !feedback.is_correct;
+
+                      return (
+                        <button key={idx}
+                          onClick={() => !feedback && setSelectedAnswer(opt)}
+                          disabled={!!feedback}
+                          className={`p-4 rounded-xl border-2 text-left transition font-medium text-lg
+                            ${isCorrectOption ? 'border-green-500 bg-green-50 text-green-700' :
+                              isWrongSelected ? 'border-red-500 bg-red-50 text-red-700' :
+                              isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
+                              'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                          <div className="flex items-center justify-between">
+                            <span>{opt}</span>
+                            {isCorrectOption && <CheckCircle size={20} className="text-green-500" />}
+                            {isWrongSelected && <XCircle size={20} className="text-red-500" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Feedback */}
               {feedback && (

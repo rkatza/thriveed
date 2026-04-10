@@ -514,3 +514,43 @@ async def accept_invitation(invitation_id: int, current_user: dict = Depends(req
         db.execute("UPDATE invitations SET status = 'accepted', accepted_at = datetime('now') WHERE id = ?", (invitation_id,))
         
         return {"message": f"Cuenta creada para {inv['email']}. Password temporal: {default_password}", "user_id": uid}
+
+# ---- Testing / Debug ----
+@router.post("/reset-student-session/{student_id}")
+async def reset_student_session(student_id: int, current_user: dict = Depends(require_roles("super_admin", "admin"))):
+    """Reset today's session for a student so they can start fresh. Admin-only."""
+    with get_db() as db:
+        student = db.execute("SELECT * FROM students WHERE id = ?", (student_id,)).fetchone()
+        if not student:
+            raise HTTPException(status_code=404, detail="Estudiante no encontrado")
+        
+        # Delete today's sessions and their attempts
+        sessions = db.execute(
+            "SELECT id FROM daily_sessions WHERE student_id = ? AND session_date = date('now')",
+            (student_id,)
+        ).fetchall()
+        for s in sessions:
+            db.execute("DELETE FROM session_attempts WHERE session_id = ?", (s["id"],))
+        db.execute(
+            "DELETE FROM daily_sessions WHERE student_id = ? AND session_date = date('now')",
+            (student_id,)
+        )
+        
+        # Reset mastery theta back to initial for fresh testing
+        db.execute(
+            "UPDATE mastery_signals SET theta = 1000.0, strength = 1.0 WHERE student_id = ?",
+            (student_id,)
+        )
+        
+        # Clean up flow events from today
+        db.execute(
+            "DELETE FROM flow_events WHERE student_id = ? AND ts >= date('now')",
+            (student_id,)
+        )
+        
+        db.execute(
+            "INSERT INTO audit_log (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)",
+            (current_user["user_id"], "reset_session", "student", student_id, "Reset daily session for testing")
+        )
+        
+        return {"message": f"Sesión del estudiante {student_id} reiniciada"}
