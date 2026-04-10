@@ -28,8 +28,10 @@ export default function CoachMessages() {
     setSending(true);
     try {
       await api.post('/api/coach/message', {
+        parent_user_id: selectedParent,
         student_id: selectedParent,
-        message: message,
+        subject: 'Mensaje del coach',
+        body: message,
       });
       setSentMessages(prev => [...prev, {
         student_id: selectedParent,
