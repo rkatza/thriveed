@@ -282,7 +282,6 @@ def init_db():
 
         CREATE INDEX IF NOT EXISTS idx_flow_events_student ON flow_events(student_id, ts);
         CREATE INDEX IF NOT EXISTS idx_flow_events_session ON flow_events(student_id, session_id, event_type);
-        CREATE INDEX IF NOT EXISTS idx_questions_skill_elo ON questions(skill_id, elo_b);
         """)
 
         # Flow Engine: additive ALTER TABLE migrations (safe to re-run)
@@ -314,6 +313,9 @@ def _run_flow_engine_migrations(db):
         db.execute("ALTER TABLE mastery_signals ADD COLUMN strength REAL DEFAULT 1.0")
     if "strength_updated_at" not in mastery_cols:
         db.execute("ALTER TABLE mastery_signals ADD COLUMN strength_updated_at TIMESTAMP")
+
+    # Index on elo_b (must run after column is added)
+    db.execute("CREATE INDEX IF NOT EXISTS idx_questions_skill_elo ON questions(skill_id, elo_b)")
 
     # Backfill elo_b from legacy difficulty
     db.execute("""
