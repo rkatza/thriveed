@@ -33,8 +33,13 @@ export default function StudentDashboard() {
       ]);
       setMission(m);
       setProfile(p);
-      if (m.exercises && m.exercises.length > 0) {
-        setExercise(m.exercises[0]);
+      const qs = m.questions || m.exercises || [];
+      if (qs.length > 0) {
+        // Filter out already-answered questions
+        const unanswered = qs.filter((q: any) => !(m.answered_ids || []).includes(q.id));
+        if (unanswered.length > 0) {
+          setExercise(unanswered[0]);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -48,7 +53,7 @@ export default function StudentDashboard() {
     setAnswering(true);
     try {
       const result = await api.post('/api/student/exercise/answer', {
-        session_id: mission.session_id,
+        session_id: mission.session?.id || mission.session_id,
         question_id: exercise.id,
         answer: selectedAnswer,
         time_spent_seconds: 30,
@@ -57,14 +62,18 @@ export default function StudentDashboard() {
 
       setTimeout(() => {
         // Move to next exercise
-        if (mission.exercises) {
-          const currentIdx = mission.exercises.findIndex((e: any) => e.id === exercise.id);
-          if (currentIdx < mission.exercises.length - 1) {
-            setExercise(mission.exercises[currentIdx + 1]);
+        const qs = mission.questions || mission.exercises || [];
+        if (qs.length > 0) {
+          const currentIdx = qs.findIndex((e: any) => e.id === exercise.id);
+          if (currentIdx < qs.length - 1) {
+            setExercise(qs[currentIdx + 1]);
             setSelectedAnswer(null);
             setFeedback(null);
-          } else {
+          } else if (result.session_complete) {
             // Mission complete - reload
+            loadData();
+          } else {
+            // More questions needed - reload
             loadData();
           }
         }
@@ -88,7 +97,10 @@ export default function StudentDashboard() {
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
 
-  const missionProgress = mission?.progress || { completed: 0, total: 0 };
+  const sessionData = mission?.session || mission || {};
+  const totalQuestions = mission?.total_questions || sessionData?.total_questions || 0;
+  const answeredCount = mission?.answered_ids?.length || sessionData?.total_questions || 0;
+  const missionProgress = mission?.progress || { completed: answeredCount, total: totalQuestions };
   const progressPercent = missionProgress.total > 0 ? (missionProgress.completed / missionProgress.total) * 100 : 0;
 
   return (
@@ -99,7 +111,7 @@ export default function StudentDashboard() {
           <div>
             <h1 className="text-2xl font-bold">¡Hola {user?.first_name}! 🚀</h1>
             <p className="text-indigo-100 mt-1">
-              {mission?.mission_title || 'Tu misión de hoy te espera'}
+              {mission?.session?.mission_title || mission?.mission_title || 'Tu misión de hoy te espera'}
             </p>
             {profile?.curriculum_level && (
               <span className="inline-block mt-2 px-3 py-1 bg-white/20 rounded-full text-xs font-medium">
@@ -163,11 +175,11 @@ export default function StudentDashboard() {
 
               {/* Options */}
               <div className="grid grid-cols-1 gap-3 mb-6">
-                {JSON.parse(exercise.options || '[]').map((opt: string, idx: number) => {
+                {(Array.isArray(exercise.options) ? exercise.options : JSON.parse(exercise.options || '[]')).map((opt: string, idx: number) => {
                   const isSelected = selectedAnswer === opt;
                   const showFeedback = feedback !== null;
-                  const isCorrectOption = showFeedback && opt === exercise.correct_answer;
-                  const isWrongSelected = showFeedback && isSelected && !feedback.correct;
+                  const isCorrectOption = showFeedback && opt === (feedback.correct_answer || exercise.correct_answer);
+                  const isWrongSelected = showFeedback && isSelected && !feedback.is_correct;
 
                   return (
                     <button key={idx}
@@ -190,9 +202,9 @@ export default function StudentDashboard() {
 
               {/* Feedback */}
               {feedback && (
-                <div className={`p-4 rounded-xl mb-4 ${feedback.correct ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                <div className={`p-4 rounded-xl mb-4 ${feedback.is_correct ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
                   <p className="font-semibold text-lg">
-                    {feedback.correct ? '¡Excelente! 🌟' : '¡Casi! 💪'}
+                    {feedback.is_correct ? '¡Excelente! 🌟' : '¡Casi! 💪'}
                   </p>
                   {feedback.explanation && <p className="text-sm mt-1">{feedback.explanation}</p>}
                   {feedback.xp_earned > 0 && <p className="text-sm mt-1">+{feedback.xp_earned} XP</p>}
@@ -242,14 +254,14 @@ export default function StudentDashboard() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Skill actual</span>
-                <span className="text-sm font-medium text-indigo-600">{mission?.skill_name || '—'}</span>
+                <span className="text-sm font-medium text-indigo-600">{mission?.session?.skill_name || mission?.skill_name || '—'}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-500">Estado</span>
                 <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                  mission?.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
+                  (mission?.session?.status || mission?.status) === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'
                 }`}>
-                  {mission?.status === 'completed' ? 'Completada' : 'En progreso'}
+                  {(mission?.session?.status || mission?.status) === 'completed' ? 'Completada' : 'En progreso'}
                 </span>
               </div>
             </div>
