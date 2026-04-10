@@ -4,7 +4,19 @@ from typing import Optional
 from app.database import get_db
 from app.auth import get_current_user, require_roles
 import json, random
-from datetime import datetime
+from datetime import datetime, timezone
+
+from app.services.flow_engine import (
+    CFG,
+    StreakState,
+    apply_answer_to_streak,
+    decayed_strength,
+    elo_update,
+    expected_p_correct,
+    update_half_life,
+    update_strength,
+)
+from app.services.question_selector import select_next_question
 
 router = APIRouter(prefix="/api/student", tags=["student"])
 
@@ -357,25 +369,68 @@ async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(requir
         db.execute("""UPDATE daily_sessions SET total_questions = ?, correct_answers = ?, active_time_seconds = ?
                      WHERE id = ?""", (total_q, correct_q, total_time, session["id"]))
         
-        # Update mastery
+        # Update mastery + Elo ratings via Flow Engine
         skill_id = question["skill_id"]
-        existing_mastery = db.execute("SELECT * FROM mastery_signals WHERE student_id = ? AND skill_id = ?",
-                                     (student["id"], skill_id)).fetchone()
-        if existing_mastery:
-            new_attempts = existing_mastery["attempts_count"] + 1
-            new_correct_count = existing_mastery["correct_count"] + (1 if is_correct else 0)
-            mastery_level = new_correct_count / new_attempts
-            db.execute("""UPDATE mastery_signals SET mastery_level = ?, attempts_count = ?, correct_count = ?, last_practiced = datetime('now')
-                         WHERE student_id = ? AND skill_id = ?""",
-                       (mastery_level, new_attempts, new_correct_count, student["id"], skill_id))
-        else:
-            db.execute("""INSERT INTO mastery_signals (student_id, skill_id, mastery_level, attempts_count, correct_count, last_practiced)
-                         VALUES (?, ?, ?, 1, ?, datetime('now'))""",
-                       (student["id"], skill_id, 1.0 if is_correct else 0.0, 1 if is_correct else 0))
+        mastery_row = _load_or_create_mastery(db, student["id"], skill_id)
         
-        # Check if session is complete (answered all questions with >=90% accuracy)
-        questions_for_session = get_session_questions(db, session["target_skill_id"], student)
-        all_answered = total_q >= len(questions_for_session)
+        theta_before = mastery_row["theta"] or CFG.INITIAL_THETA
+        b_before = question["elo_b"] if question["elo_b"] is not None else CFG.INITIAL_B
+        times_before = question["times_answered"] if question["times_answered"] is not None else 0
+        
+        # Elo update
+        new_theta, new_b, expected_p = elo_update(
+            theta=theta_before,
+            elo_b=b_before,
+            was_correct=is_correct,
+            times_answered_before=times_before,
+        )
+        
+        # Forgetting curve update
+        new_hl = update_half_life(
+            mastery_row["half_life_days"] or CFG.HALF_LIFE_INIT_DAYS, is_correct
+        )
+        new_strength = update_strength(is_correct)
+        now_iso = datetime.now(timezone.utc).isoformat()
+        
+        # Update mastery row with Elo + forgetting data
+        new_attempts = (mastery_row["attempts_count"] or 0) + 1
+        new_correct_count = (mastery_row["correct_count"] or 0) + (1 if is_correct else 0)
+        mastery_level = new_correct_count / max(1, new_attempts)
+        
+        db.execute("""UPDATE mastery_signals
+                     SET mastery_level = ?, attempts_count = ?, correct_count = ?,
+                         last_practiced = datetime('now'),
+                         theta = ?, half_life_days = ?, strength = ?,
+                         strength_updated_at = ?
+                     WHERE student_id = ? AND skill_id = ?""",
+                   (mastery_level, new_attempts, new_correct_count,
+                    new_theta, new_hl, new_strength, now_iso,
+                    student["id"], skill_id))
+        
+        # Update question Elo rating
+        db.execute("""UPDATE questions
+                     SET elo_b = ?,
+                         times_answered = COALESCE(times_answered, 0) + 1,
+                         times_correct = COALESCE(times_correct, 0) + ?
+                     WHERE id = ?""",
+                   (new_b, 1 if is_correct else 0, question["id"]))
+        
+        # Flow Engine telemetry
+        db.execute("""INSERT INTO flow_events (
+                        event_type, student_id, question_id, skill_id,
+                        theta_at, elo_b_at, expected_p,
+                        was_correct, time_taken_ms,
+                        theta_delta, elo_b_delta, session_id
+                     ) VALUES ('answer', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (student["id"], question["id"], skill_id,
+                    theta_before, b_before, expected_p,
+                    1 if is_correct else 0, req.time_spent_seconds * 1000,
+                    new_theta - theta_before, new_b - b_before,
+                    str(session["id"])))
+        
+        # Check if session is complete (8+ questions answered with >=90% accuracy)
+        session_total = session["total_questions"] or 8
+        all_answered = total_q >= session_total
         accuracy = (correct_q / total_q * 100) if total_q > 0 else 0
         session_complete = all_answered and accuracy >= 90
         
@@ -491,6 +546,28 @@ async def request_help(current_user: dict = Depends(require_roles("student"))):
                    (student["id"], session_id))
         return {"message": "¡Tu coach ha sido notificado! Ya viene a ayudarte.", "icon": "🆘"}
 
+def _load_or_create_mastery(db, student_id: int, skill_id: int) -> dict:
+    """Load mastery row for (student, skill), creating one if it doesn't exist."""
+    row = db.execute(
+        "SELECT * FROM mastery_signals WHERE student_id = ? AND skill_id = ?",
+        (student_id, skill_id),
+    ).fetchone()
+    if row:
+        return dict(row)
+    # First time for this (student, skill) — insert with Flow Engine defaults
+    db.execute(
+        """INSERT INTO mastery_signals (
+              student_id, skill_id, mastery_level, attempts_count, correct_count,
+              last_practiced, theta, half_life_days, strength, strength_updated_at
+           ) VALUES (?, ?, 0.0, 0, 0, NULL, ?, ?, 1.0, NULL)""",
+        (student_id, skill_id, CFG.INITIAL_THETA, CFG.HALF_LIFE_INIT_DAYS),
+    )
+    return dict(db.execute(
+        "SELECT * FROM mastery_signals WHERE student_id = ? AND skill_id = ?",
+        (student_id, skill_id),
+    ).fetchone())
+
+
 def find_next_skill(db, student_id):
     """Find the next skill the student should work on based on mastery and prerequisites"""
     curriculum_level = get_student_curriculum_level(db, student_id)
@@ -520,33 +597,106 @@ def find_next_skill(db, student_id):
     return skills[0]["id"] if skills else None
 
 def get_session_questions(db, skill_id, student):
-    """Get questions for a daily session - mix of target skill + spaced repetition"""
+    """Get questions for a daily session using Flow Engine selector + spaced repetition."""
     interests = json.loads(student.get("interests", "[]") or "[]")
     
-    # Main skill questions (6-8)
-    main_qs = db.execute("""SELECT * FROM questions WHERE skill_id = ? AND is_placement = 0
-                            ORDER BY RANDOM() LIMIT 8""", (skill_id,)).fetchall()
+    # Load or create mastery for the target skill
+    mastery_row = _load_or_create_mastery(db, student["id"], skill_id)
+    theta = mastery_row["theta"] or CFG.INITIAL_THETA
+    streak = StreakState()
+    session_id_str = f"mission-{student['id']}-{skill_id}"
     
-    # If not enough exercise questions, also use placement questions for this skill
+    # Main skill questions (8) via Flow Engine selector
+    main_qs = []
+    seen_ids = set()
+    for _ in range(12):  # try up to 12 times to get 8 unique questions
+        if len(main_qs) >= 8:
+            break
+        q = select_next_question(
+            conn=db,
+            student_id=student["id"],
+            skill_id=skill_id,
+            theta=theta,
+            streak=streak,
+            interest_tags=interests,
+            session_id=session_id_str,
+        )
+        if q and q["id"] not in seen_ids:
+            main_qs.append(q)
+            seen_ids.add(q["id"])
+    
+    # If not enough from Flow Engine, fall back to random selection
     if len(main_qs) < 5:
-        extra = db.execute("""SELECT * FROM questions WHERE skill_id = ? AND is_placement = 1
-                              ORDER BY RANDOM() LIMIT ?""", (skill_id, 5 - len(main_qs))).fetchall()
-        main_qs = list(main_qs) + list(extra)
+        fallback_qs = db.execute("""SELECT * FROM questions WHERE skill_id = ? AND is_placement = 0
+                                    AND id NOT IN ({})
+                                    ORDER BY RANDOM() LIMIT ?""".format(
+                                    ",".join(str(i) for i in seen_ids) if seen_ids else "0"),
+                                (skill_id, 8 - len(main_qs))).fetchall()
+        for q in fallback_qs:
+            qd = dict(q)
+            if qd["id"] not in seen_ids:
+                main_qs.append(qd)
+                seen_ids.add(qd["id"])
+        # Also try placement questions as last resort
+        if len(main_qs) < 5:
+            extra = db.execute("""SELECT * FROM questions WHERE skill_id = ? AND is_placement = 1
+                                  AND id NOT IN ({})
+                                  ORDER BY RANDOM() LIMIT ?""".format(
+                                  ",".join(str(i) for i in seen_ids) if seen_ids else "0"),
+                              (skill_id, 5 - len(main_qs))).fetchall()
+            for q in extra:
+                main_qs.append(dict(q))
     
-    # Spaced repetition: 2-3 review questions from previously mastered skills
-    review_qs = db.execute("""SELECT q.* FROM questions q
-                              JOIN mastery_signals ms ON q.skill_id = ms.skill_id
-                              WHERE ms.student_id = ? AND ms.mastery_level >= 0.5 AND ms.mastery_level < 0.95
-                              AND q.skill_id != ? AND q.is_placement = 0
-                              ORDER BY RANDOM() LIMIT 3""",
-                           (student["id"], skill_id)).fetchall()
+    # Spaced repetition: 3 review questions from decaying skills
+    review_qs = []
+    review_rows = db.execute(
+        """SELECT skill_id, theta, half_life_days, strength, last_practiced
+             FROM mastery_signals
+            WHERE student_id = ? AND mastery_level >= 0.5 AND skill_id != ?""",
+        (student["id"], skill_id),
+    ).fetchall()
     
-    all_qs = list(main_qs) + list(review_qs)
+    review_candidates = []
+    for r in review_rows:
+        last_practiced = None
+        if r["last_practiced"]:
+            try:
+                last_practiced = datetime.fromisoformat(str(r["last_practiced"]).replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                pass
+        s = decayed_strength(
+            r["strength"] or 1.0,
+            r["half_life_days"] or CFG.HALF_LIFE_INIT_DAYS,
+            last_practiced,
+        )
+        if s < CFG.STRENGTH_REVIEW_THRESHOLD:
+            review_candidates.append((s, dict(r)))
+    review_candidates.sort(key=lambda x: x[0])  # weakest first
+    
+    for _, r in review_candidates[:3]:
+        review_theta = r["theta"] or CFG.INITIAL_THETA
+        q = select_next_question(
+            conn=db,
+            student_id=student["id"],
+            skill_id=r["skill_id"],
+            theta=review_theta,
+            streak=StreakState(),
+            interest_tags=interests,
+            session_id=session_id_str,
+        )
+        if q and q["id"] not in seen_ids:
+            review_qs.append(q)
+            seen_ids.add(q["id"])
+    
+    all_qs = main_qs + review_qs
     result = []
     for q in all_qs:
-        qd = dict(q)
-        if qd.get("options"):
+        qd = q if isinstance(q, dict) else dict(q)
+        if qd.get("options") and isinstance(qd["options"], str):
             qd["options"] = json.loads(qd["options"])
+        # Remove internal Flow Engine fields from response
+        qd.pop("_expected_p", None)
+        qd.pop("_fallback", None)
         result.append(qd)
     
     random.shuffle(result)

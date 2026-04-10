@@ -259,4 +259,65 @@ def init_db():
             expires_at TIMESTAMP,
             accepted_at TIMESTAMP
         );
+
+        -- Flow Engine: append-only telemetry table
+        CREATE TABLE IF NOT EXISTS flow_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            event_type TEXT NOT NULL,
+            student_id INTEGER NOT NULL,
+            question_id INTEGER NOT NULL,
+            skill_id INTEGER NOT NULL,
+            theta_at REAL,
+            elo_b_at REAL,
+            expected_p REAL,
+            was_correct INTEGER,
+            time_taken_ms INTEGER,
+            theta_delta REAL,
+            elo_b_delta REAL,
+            interest_match INTEGER,
+            selector_fallback INTEGER,
+            session_id TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_flow_events_student ON flow_events(student_id, ts);
+        CREATE INDEX IF NOT EXISTS idx_flow_events_session ON flow_events(student_id, session_id, event_type);
+        CREATE INDEX IF NOT EXISTS idx_questions_skill_elo ON questions(skill_id, elo_b);
         """)
+
+        # Flow Engine: additive ALTER TABLE migrations (safe to re-run)
+        _run_flow_engine_migrations(db)
+
+
+def _run_flow_engine_migrations(db):
+    """Add Flow Engine columns to existing tables. Safe to call multiple times."""
+    # Check which columns already exist
+    question_cols = {row[1] for row in db.execute("PRAGMA table_info(questions)").fetchall()}
+    mastery_cols = {row[1] for row in db.execute("PRAGMA table_info(mastery_signals)").fetchall()}
+
+    # Per-question Elo rating columns
+    if "elo_b" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN elo_b REAL DEFAULT 1000.0")
+    if "times_answered" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN times_answered INTEGER DEFAULT 0")
+    if "times_correct" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN times_correct INTEGER DEFAULT 0")
+    if "needs_review" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN needs_review INTEGER DEFAULT 0")
+
+    # Per-(student,skill) ability + forgetting state
+    if "theta" not in mastery_cols:
+        db.execute("ALTER TABLE mastery_signals ADD COLUMN theta REAL DEFAULT 1000.0")
+    if "half_life_days" not in mastery_cols:
+        db.execute("ALTER TABLE mastery_signals ADD COLUMN half_life_days REAL DEFAULT 1.0")
+    if "strength" not in mastery_cols:
+        db.execute("ALTER TABLE mastery_signals ADD COLUMN strength REAL DEFAULT 1.0")
+    if "strength_updated_at" not in mastery_cols:
+        db.execute("ALTER TABLE mastery_signals ADD COLUMN strength_updated_at TIMESTAMP")
+
+    # Backfill elo_b from legacy difficulty
+    db.execute("""
+        UPDATE questions
+           SET elo_b = 800 + (COALESCE(difficulty, 2) * 100)
+         WHERE elo_b = 1000.0 OR elo_b IS NULL
+    """)
