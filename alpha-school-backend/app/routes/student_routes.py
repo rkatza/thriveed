@@ -1,0 +1,549 @@
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from typing import Optional
+from app.database import get_db
+from app.auth import get_current_user, require_roles
+import json, random
+from datetime import datetime
+
+router = APIRouter(prefix="/api/student", tags=["student"])
+
+# ---- Models ----
+class ProfileUpdate(BaseModel):
+    nickname: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+class InterestsUpdate(BaseModel):
+    interests: list[str]
+
+class AnswerSubmit(BaseModel):
+    question_id: int
+    answer: str
+    time_spent_seconds: int = 0
+
+class SessionRating(BaseModel):
+    rating: int
+
+def get_student(current_user):
+    with get_db() as db:
+        student = db.execute("SELECT * FROM students WHERE user_id = ?", (current_user["user_id"],)).fetchone()
+        if not student:
+            raise HTTPException(status_code=404, detail="Perfil de estudiante no encontrado")
+        return dict(student)
+
+# ---- Profile ----
+@router.get("/profile")
+async def get_profile(current_user: dict = Depends(require_roles("student"))):
+    with get_db() as db:
+        student = db.execute("""SELECT s.*, u.first_name, u.last_name, u.email
+                                FROM students s JOIN users u ON s.user_id = u.id
+                                WHERE s.user_id = ?""", (current_user["user_id"],)).fetchone()
+        if not student:
+            raise HTTPException(status_code=404, detail="Perfil no encontrado")
+        result = dict(student)
+        result["curriculum_level"] = get_student_curriculum_level(db, student["id"])
+        return result
+
+@router.put("/profile")
+async def update_profile(req: ProfileUpdate, current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        if req.nickname:
+            db.execute("UPDATE students SET nickname = ? WHERE id = ?", (req.nickname, student["id"]))
+        if req.avatar_url:
+            db.execute("UPDATE students SET avatar_url = ? WHERE id = ?", (req.avatar_url, student["id"]))
+        return {"message": "Perfil actualizado"}
+
+@router.post("/interests")
+async def update_interests(req: InterestsUpdate, current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        db.execute("UPDATE students SET interests = ? WHERE id = ?", (json.dumps(req.interests), student["id"]))
+        return {"message": "Intereses actualizados", "interests": req.interests}
+
+# ---- Placement Test ----
+@router.get("/placement-test/start")
+async def start_placement_test(current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        # Check existing in-progress test
+        existing = db.execute("SELECT * FROM placement_tests WHERE student_id = ? AND status = 'in_progress'",
+                             (student["id"],)).fetchone()
+        if existing:
+            # Return current state
+            answered_ids = [r["question_id"] for r in db.execute(
+                "SELECT question_id FROM placement_answers WHERE placement_test_id = ?", (existing["id"],)).fetchall()]
+            next_q = get_next_placement_question(db, existing["current_difficulty"], answered_ids, student)
+            return {
+                "test_id": existing["id"],
+                "status": "in_progress",
+                "questions_answered": existing["questions_answered"],
+                "current_difficulty": existing["current_difficulty"],
+                "next_question": next_q
+            }
+        
+        if student["placement_test_completed"]:
+            raise HTTPException(status_code=400, detail="Ya completaste el placement test")
+        
+        # Create new test
+        db.execute("INSERT INTO placement_tests (student_id) VALUES (?)", (student["id"],))
+        test_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        
+        # Get first question (easiest)
+        first_q = get_next_placement_question(db, 1, [], student)
+        
+        return {
+            "test_id": test_id,
+            "status": "in_progress",
+            "questions_answered": 0,
+            "current_difficulty": 1,
+            "next_question": first_q
+        }
+
+@router.post("/placement-test/answer")
+async def answer_placement_test(req: AnswerSubmit, current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        test = db.execute("SELECT * FROM placement_tests WHERE student_id = ? AND status = 'in_progress'",
+                         (student["id"],)).fetchone()
+        if not test:
+            raise HTTPException(status_code=400, detail="No hay placement test en progreso")
+        
+        # Check answer
+        question = db.execute("SELECT * FROM questions WHERE id = ?", (req.question_id,)).fetchone()
+        if not question:
+            raise HTTPException(status_code=404, detail="Pregunta no encontrada")
+        
+        is_correct = req.answer.strip().lower() == question["correct_answer"].strip().lower()
+        
+        # Save answer
+        db.execute("""INSERT INTO placement_answers (placement_test_id, question_id, student_answer, is_correct, time_spent_seconds)
+                     VALUES (?, ?, ?, ?, ?)""",
+                   (test["id"], req.question_id, req.answer, int(is_correct), req.time_spent_seconds))
+        
+        new_answered = test["questions_answered"] + 1
+        new_correct = test["correct_answers"] + (1 if is_correct else 0)
+        
+        # Adaptive difficulty
+        new_difficulty = test["current_difficulty"]
+        if is_correct:
+            new_difficulty = min(4, test["current_difficulty"] + 1)
+        else:
+            new_difficulty = max(1, test["current_difficulty"] - 1)
+        
+        db.execute("""UPDATE placement_tests SET questions_answered = ?, correct_answers = ?, current_difficulty = ?
+                     WHERE id = ?""", (new_answered, new_correct, new_difficulty, test["id"]))
+        
+        # Update mastery for this skill
+        skill_id = question["skill_id"]
+        existing_mastery = db.execute("SELECT * FROM mastery_signals WHERE student_id = ? AND skill_id = ?",
+                                     (student["id"], skill_id)).fetchone()
+        if existing_mastery:
+            new_attempts = existing_mastery["attempts_count"] + 1
+            new_correct_count = existing_mastery["correct_count"] + (1 if is_correct else 0)
+            mastery_level = new_correct_count / new_attempts
+            db.execute("""UPDATE mastery_signals SET mastery_level = ?, attempts_count = ?, correct_count = ?, last_practiced = datetime('now')
+                         WHERE student_id = ? AND skill_id = ?""",
+                       (mastery_level, new_attempts, new_correct_count, student["id"], skill_id))
+        else:
+            db.execute("""INSERT INTO mastery_signals (student_id, skill_id, mastery_level, attempts_count, correct_count, last_practiced)
+                         VALUES (?, ?, ?, 1, ?, datetime('now'))""",
+                       (student["id"], skill_id, 1.0 if is_correct else 0.0, 1 if is_correct else 0))
+        
+        # Check if test is done (based on curriculum level question count)
+        curriculum_level = get_student_curriculum_level(db, student["id"])
+        total_placement_q = db.execute("""SELECT COUNT(*) as c FROM questions q
+                                          JOIN skills sk ON q.skill_id = sk.id
+                                          WHERE q.is_placement = 1 AND sk.curriculum_level = ?""",
+                                       (curriculum_level,)).fetchone()["c"]
+        answered_ids = [r["question_id"] for r in db.execute(
+            "SELECT question_id FROM placement_answers WHERE placement_test_id = ?", (test["id"],)).fetchall()]
+        
+        is_complete = new_answered >= min(20, total_placement_q)
+        
+        if is_complete:
+            score = (new_correct / new_answered) * 100 if new_answered > 0 else 0
+            db.execute("""UPDATE placement_tests SET status = 'completed', completed_at = datetime('now')
+                         WHERE id = ?""", (test["id"],))
+            db.execute("UPDATE students SET placement_test_completed = 1, placement_test_score = ? WHERE id = ?",
+                       (score, student["id"]))
+            
+            # Award achievement
+            db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (?, ?, ?, ?)",
+                       (student["id"], "Explorador", "¡Completaste el placement test!", "🗺️"))
+            
+            return {
+                "is_correct": is_correct,
+                "correct_answer": question["correct_answer"],
+                "explanation": question["explanation"],
+                "test_complete": True,
+                "score": round(score, 1),
+                "questions_answered": new_answered,
+                "correct_answers": new_correct
+            }
+        
+        # Get next question
+        next_q = get_next_placement_question(db, new_difficulty, answered_ids, student)
+        
+        return {
+            "is_correct": is_correct,
+            "correct_answer": question["correct_answer"],
+            "explanation": question["explanation"],
+            "hint": question["hint"] if not is_correct else None,
+            "test_complete": False,
+            "questions_answered": new_answered,
+            "correct_answers": new_correct,
+            "next_question": next_q
+        }
+
+@router.get("/placement-test/results")
+async def get_placement_results(current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        test = db.execute("SELECT * FROM placement_tests WHERE student_id = ? AND status = 'completed' ORDER BY completed_at DESC LIMIT 1",
+                         (student["id"],)).fetchone()
+        if not test:
+            raise HTTPException(status_code=404, detail="No hay resultados del placement test")
+        
+        mastery = db.execute("""SELECT ms.*, sk.name, sk.category, sk.difficulty_level
+                                FROM mastery_signals ms JOIN skills sk ON ms.skill_id = sk.id
+                                WHERE ms.student_id = ? ORDER BY sk.order_index""",
+                             (student["id"],)).fetchall()
+        
+        return {
+            "test": dict(test),
+            "mastery_map": [dict(m) for m in mastery]
+        }
+
+def get_student_curriculum_level(db, student_id):
+    """Get curriculum level based on student's classroom"""
+    row = db.execute("""SELECT g.level FROM students s
+                        JOIN classrooms c ON s.classroom_id = c.id
+                        JOIN grades g ON c.grade_id = g.id
+                        WHERE s.id = ?""", (student_id,)).fetchone()
+    if row and row["level"] == 0:
+        return "kinder"
+    return "4to_grado"
+
+def get_next_placement_question(db, difficulty, answered_ids, student):
+    """Get the next adaptive placement question"""
+    interests = json.loads(student.get("interests", "[]") or "[]")
+    curriculum_level = get_student_curriculum_level(db, student["id"])
+    
+    # Build exclusion
+    exclude = ",".join(str(i) for i in answered_ids) if answered_ids else "0"
+    
+    # Try to find question matching difficulty, curriculum_level and interests
+    query = f"""SELECT q.* FROM questions q
+                JOIN skills sk ON q.skill_id = sk.id
+                WHERE q.is_placement = 1 AND q.id NOT IN ({exclude})
+                AND sk.curriculum_level = ? AND q.difficulty = ?
+                ORDER BY RANDOM() LIMIT 1"""
+    q = db.execute(query, (curriculum_level, difficulty)).fetchone()
+    
+    if not q:
+        # Fallback: any unanswered placement question for this curriculum
+        q = db.execute(f"""SELECT q.* FROM questions q
+                           JOIN skills sk ON q.skill_id = sk.id
+                           WHERE q.is_placement = 1 AND q.id NOT IN ({exclude})
+                           AND sk.curriculum_level = ?
+                           ORDER BY RANDOM() LIMIT 1""", (curriculum_level,)).fetchone()
+    
+    if not q:
+        return None
+    
+    result = dict(q)
+    if result.get("options"):
+        result["options"] = json.loads(result["options"])
+    return result
+
+# ---- Daily Mission ----
+@router.get("/daily-mission")
+async def get_daily_mission(current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        # Check for existing today's session
+        session = db.execute("""SELECT ds.*, sk.name as skill_name, sk.category
+                                FROM daily_sessions ds LEFT JOIN skills sk ON ds.target_skill_id = sk.id
+                                WHERE ds.student_id = ? AND ds.session_date = date('now')
+                                ORDER BY ds.started_at DESC LIMIT 1""",
+                             (student["id"],)).fetchone()
+        
+        if session:
+            # Get questions for this session
+            questions = get_session_questions(db, session["target_skill_id"], student)
+            answered = db.execute("SELECT question_id FROM session_attempts WHERE session_id = ?", (session["id"],)).fetchall()
+            answered_ids = [a["question_id"] for a in answered]
+            
+            return {
+                "session": dict(session),
+                "questions": questions,
+                "answered_ids": answered_ids,
+                "total_questions": len(questions)
+            }
+        
+        # Create new daily mission - find the best skill to work on
+        target_skill = find_next_skill(db, student["id"])
+        if not target_skill:
+            return {"session": None, "message": "¡Has completado todas las habilidades disponibles!"}
+        
+        skill = db.execute("SELECT * FROM skills WHERE id = ?", (target_skill,)).fetchone()
+        mission_titles = [
+            f"¡Hoy vas a dominar: {skill['name']}!",
+            f"Misión del día: {skill['name']}",
+            f"¡Vamos con {skill['name']}!",
+            f"Tu reto de hoy: {skill['name']}"
+        ]
+        
+        db.execute("""INSERT INTO daily_sessions (student_id, target_skill_id, mission_title, status)
+                     VALUES (?, ?, ?, 'pending')""",
+                   (student["id"], target_skill, random.choice(mission_titles)))
+        session_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+        
+        session = db.execute("""SELECT ds.*, sk.name as skill_name, sk.category
+                                FROM daily_sessions ds LEFT JOIN skills sk ON ds.target_skill_id = sk.id
+                                WHERE ds.id = ?""", (session_id,)).fetchone()
+        
+        questions = get_session_questions(db, target_skill, student)
+        
+        return {
+            "session": dict(session),
+            "questions": questions,
+            "answered_ids": [],
+            "total_questions": len(questions)
+        }
+
+@router.post("/exercise/answer")
+async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        # Get active session
+        session = db.execute("""SELECT * FROM daily_sessions WHERE student_id = ? AND session_date = date('now')
+                                AND status IN ('pending', 'in_progress') ORDER BY started_at DESC LIMIT 1""",
+                             (student["id"],)).fetchone()
+        if not session:
+            raise HTTPException(status_code=400, detail="No hay sesión activa")
+        
+        # Mark session as in_progress if pending
+        if session["status"] == "pending":
+            db.execute("UPDATE daily_sessions SET status = 'in_progress' WHERE id = ?", (session["id"],))
+        
+        # Check answer
+        question = db.execute("SELECT * FROM questions WHERE id = ?", (req.question_id,)).fetchone()
+        if not question:
+            raise HTTPException(status_code=404, detail="Pregunta no encontrada")
+        
+        is_correct = req.answer.strip().lower() == question["correct_answer"].strip().lower()
+        
+        # Count existing attempts for this question in this session
+        attempt_count = db.execute("""SELECT COUNT(*) as c FROM session_attempts 
+                                     WHERE session_id = ? AND question_id = ?""",
+                                   (session["id"], req.question_id)).fetchone()["c"]
+        
+        # Save attempt
+        db.execute("""INSERT INTO session_attempts (session_id, question_id, student_answer, is_correct, attempt_number, time_spent_seconds)
+                     VALUES (?, ?, ?, ?, ?, ?)""",
+                   (session["id"], req.question_id, req.answer, int(is_correct), attempt_count + 1, req.time_spent_seconds))
+        
+        # Update session counters
+        total_q = db.execute("SELECT COUNT(DISTINCT question_id) as c FROM session_attempts WHERE session_id = ?",
+                            (session["id"],)).fetchone()["c"]
+        correct_q = db.execute("""SELECT COUNT(DISTINCT question_id) as c FROM session_attempts 
+                                  WHERE session_id = ? AND is_correct = 1""",
+                               (session["id"],)).fetchone()["c"]
+        total_time = db.execute("SELECT COALESCE(SUM(time_spent_seconds), 0) as t FROM session_attempts WHERE session_id = ?",
+                               (session["id"],)).fetchone()["t"]
+        
+        db.execute("""UPDATE daily_sessions SET total_questions = ?, correct_answers = ?, active_time_seconds = ?
+                     WHERE id = ?""", (total_q, correct_q, total_time, session["id"]))
+        
+        # Update mastery
+        skill_id = question["skill_id"]
+        existing_mastery = db.execute("SELECT * FROM mastery_signals WHERE student_id = ? AND skill_id = ?",
+                                     (student["id"], skill_id)).fetchone()
+        if existing_mastery:
+            new_attempts = existing_mastery["attempts_count"] + 1
+            new_correct_count = existing_mastery["correct_count"] + (1 if is_correct else 0)
+            mastery_level = new_correct_count / new_attempts
+            db.execute("""UPDATE mastery_signals SET mastery_level = ?, attempts_count = ?, correct_count = ?, last_practiced = datetime('now')
+                         WHERE student_id = ? AND skill_id = ?""",
+                       (mastery_level, new_attempts, new_correct_count, student["id"], skill_id))
+        else:
+            db.execute("""INSERT INTO mastery_signals (student_id, skill_id, mastery_level, attempts_count, correct_count, last_practiced)
+                         VALUES (?, ?, ?, 1, ?, datetime('now'))""",
+                       (student["id"], skill_id, 1.0 if is_correct else 0.0, 1 if is_correct else 0))
+        
+        # Check if session is complete (answered all questions with >=90% accuracy)
+        questions_for_session = get_session_questions(db, session["target_skill_id"], student)
+        all_answered = total_q >= len(questions_for_session)
+        accuracy = (correct_q / total_q * 100) if total_q > 0 else 0
+        session_complete = all_answered and accuracy >= 90
+        
+        if session_complete:
+            db.execute("""UPDATE daily_sessions SET status = 'completed', completed_at = datetime('now')
+                         WHERE id = ?""", (session["id"],))
+            # Award achievement
+            db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (?, ?, ?, ?)",
+                       (student["id"], "Misión Cumplida", f"¡Dominaste la sesión del día!", "🎯"))
+        elif all_answered and accuracy < 90:
+            # Need to retry some questions - don't complete yet
+            pass
+        
+        response = {
+            "is_correct": is_correct,
+            "correct_answer": question["correct_answer"],
+            "explanation": question["explanation"] if not is_correct else None,
+            "hint": question["hint"] if not is_correct and attempt_count == 0 else None,
+            "attempt_number": attempt_count + 1,
+            "session_complete": session_complete,
+            "accuracy": round(accuracy, 1),
+            "questions_answered": total_q,
+            "correct_answers": correct_q,
+            "total_time_seconds": total_time
+        }
+        
+        if session_complete:
+            response["celebration"] = "🎉 ¡Excelente trabajo! ¡Misión completada!"
+        
+        return response
+
+@router.post("/exercise/session/{session_id}/rate")
+async def rate_session(session_id: int, req: SessionRating, current_user: dict = Depends(require_roles("student"))):
+    with get_db() as db:
+        db.execute("UPDATE daily_sessions SET rating = ? WHERE id = ?", (req.rating, session_id))
+        return {"message": "¡Gracias por tu opinión!"}
+
+# ---- Progress & Achievements ----
+@router.get("/progress")
+async def get_progress(current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        mastery = db.execute("""SELECT ms.*, sk.name, sk.category, sk.difficulty_level, sk.order_index
+                                FROM mastery_signals ms JOIN skills sk ON ms.skill_id = sk.id
+                                WHERE ms.student_id = ? ORDER BY sk.order_index""",
+                             (student["id"],)).fetchall()
+        
+        sessions = db.execute("""SELECT ds.*, sk.name as skill_name
+                                 FROM daily_sessions ds LEFT JOIN skills sk ON ds.target_skill_id = sk.id
+                                 WHERE ds.student_id = ? ORDER BY ds.started_at DESC LIMIT 30""",
+                              (student["id"],)).fetchall()
+        
+        total_sessions = db.execute("SELECT COUNT(*) as c FROM daily_sessions WHERE student_id = ?",
+                                   (student["id"],)).fetchone()["c"]
+        completed = db.execute("SELECT COUNT(*) as c FROM daily_sessions WHERE student_id = ? AND status = 'completed'",
+                              (student["id"],)).fetchone()["c"]
+        avg_accuracy = db.execute("""SELECT COALESCE(AVG(CASE WHEN total_questions > 0 THEN correct_answers * 100.0 / total_questions ELSE 0 END), 0) as avg
+                                    FROM daily_sessions WHERE student_id = ? AND status = 'completed'""",
+                                 (student["id"],)).fetchone()["avg"]
+        
+        return {
+            "mastery": [dict(m) for m in mastery],
+            "recent_sessions": [dict(s) for s in sessions],
+            "stats": {
+                "total_sessions": total_sessions,
+                "completed_sessions": completed,
+                "avg_accuracy": round(avg_accuracy, 1),
+                "skills_mastered": sum(1 for m in mastery if m["mastery_level"] >= 0.9),
+                "total_skills": db.execute("SELECT COUNT(*) as c FROM skills WHERE curriculum_level = ?", (get_student_curriculum_level(db, student["id"]),)).fetchone()["c"]
+            }
+        }
+
+@router.get("/skill-map")
+async def get_skill_map(current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        curriculum_level = get_student_curriculum_level(db, student["id"])
+        skills = db.execute("SELECT * FROM skills WHERE curriculum_level = ? ORDER BY order_index", (curriculum_level,)).fetchall()
+        mastery = db.execute("SELECT * FROM mastery_signals WHERE student_id = ?", (student["id"],)).fetchall()
+        mastery_dict = {m["skill_id"]: m["mastery_level"] for m in mastery}
+        
+        skill_map = []
+        for s in skills:
+            skill_map.append({
+                **dict(s),
+                "mastery_level": mastery_dict.get(s["id"], 0),
+                "status": "mastered" if mastery_dict.get(s["id"], 0) >= 0.9 else 
+                          "in_progress" if mastery_dict.get(s["id"], 0) > 0 else "locked"
+            })
+        return skill_map
+
+@router.get("/achievements")
+async def get_achievements(current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        achievements_list = db.execute("SELECT * FROM achievements WHERE student_id = ? ORDER BY earned_at DESC",
+                                (student["id"],)).fetchall()
+        return [dict(a) for a in achievements_list]
+
+@router.post("/help-request")
+async def request_help(current_user: dict = Depends(require_roles("student"))):
+    student = get_student(current_user)
+    with get_db() as db:
+        session = db.execute("""SELECT * FROM daily_sessions WHERE student_id = ? AND session_date = date('now')
+                                AND status IN ('pending', 'in_progress') ORDER BY started_at DESC LIMIT 1""",
+                             (student["id"],)).fetchone()
+        session_id = session["id"] if session else None
+        db.execute("INSERT INTO help_requests (student_id, session_id) VALUES (?, ?)",
+                   (student["id"], session_id))
+        return {"message": "¡Tu coach ha sido notificado! Ya viene a ayudarte.", "icon": "🆘"}
+
+def find_next_skill(db, student_id):
+    """Find the next skill the student should work on based on mastery and prerequisites"""
+    curriculum_level = get_student_curriculum_level(db, student_id)
+    skills = db.execute("SELECT * FROM skills WHERE curriculum_level = ? ORDER BY order_index", (curriculum_level,)).fetchall()
+    mastery = db.execute("SELECT skill_id, mastery_level FROM mastery_signals WHERE student_id = ?",
+                        (student_id,)).fetchall()
+    mastery_dict = {m["skill_id"]: m["mastery_level"] for m in mastery}
+    
+    for skill in skills:
+        current_mastery = mastery_dict.get(skill["id"], 0)
+        if current_mastery >= 0.9:
+            continue  # Already mastered
+        
+        # Check prerequisite
+        if skill["prerequisite_skill_id"]:
+            prereq_mastery = mastery_dict.get(skill["prerequisite_skill_id"], 0)
+            if prereq_mastery < 0.8:
+                continue  # Prerequisite not met
+        
+        return skill["id"]
+    
+    # If all mastered or no valid next, return first non-mastered
+    for skill in skills:
+        if mastery_dict.get(skill["id"], 0) < 0.9:
+            return skill["id"]
+    
+    return skills[0]["id"] if skills else None
+
+def get_session_questions(db, skill_id, student):
+    """Get questions for a daily session - mix of target skill + spaced repetition"""
+    interests = json.loads(student.get("interests", "[]") or "[]")
+    
+    # Main skill questions (6-8)
+    main_qs = db.execute("""SELECT * FROM questions WHERE skill_id = ? AND is_placement = 0
+                            ORDER BY RANDOM() LIMIT 8""", (skill_id,)).fetchall()
+    
+    # If not enough exercise questions, also use placement questions for this skill
+    if len(main_qs) < 5:
+        extra = db.execute("""SELECT * FROM questions WHERE skill_id = ? AND is_placement = 1
+                              ORDER BY RANDOM() LIMIT ?""", (skill_id, 5 - len(main_qs))).fetchall()
+        main_qs = list(main_qs) + list(extra)
+    
+    # Spaced repetition: 2-3 review questions from previously mastered skills
+    review_qs = db.execute("""SELECT q.* FROM questions q
+                              JOIN mastery_signals ms ON q.skill_id = ms.skill_id
+                              WHERE ms.student_id = ? AND ms.mastery_level >= 0.5 AND ms.mastery_level < 0.95
+                              AND q.skill_id != ? AND q.is_placement = 0
+                              ORDER BY RANDOM() LIMIT 3""",
+                           (student["id"], skill_id)).fetchall()
+    
+    all_qs = list(main_qs) + list(review_qs)
+    result = []
+    for q in all_qs:
+        qd = dict(q)
+        if qd.get("options"):
+            qd["options"] = json.loads(qd["options"])
+        result.append(qd)
+    
+    random.shuffle(result)
+    return result
