@@ -1,9 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 from app.database import get_db
 from app.auth import get_current_user, require_roles
+from app.services.gamification import level_progress
 import json
+import csv
+import io
 
 router = APIRouter(prefix="/api/parent", tags=["parent"])
 
@@ -279,3 +283,191 @@ async def send_report(req: ReportCreate, current_user: dict = Depends(require_ro
                          VALUES (?, ?, ?, ?, ?)""",
                        (current_user["user_id"], admin["id"], req.student_id, "Reporte del padre", req.body))
         return {"message": "Reporte enviado al director"}
+
+
+# ---- Monthly Progress Report ----
+@router.get("/child/{student_id}/monthly-report")
+async def child_monthly_report(student_id: int, current_user: dict = Depends(require_roles("parent"))):
+    """Comprehensive monthly progress report with charts data and goal tracking."""
+    parent = get_parent(current_user)
+    with get_db() as db:
+        link = db.execute("SELECT * FROM parent_students WHERE parent_id = ? AND student_id = ?",
+                         (parent["id"], student_id)).fetchone()
+        if not link:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este estudiante")
+
+        student = db.execute("""SELECT s.*, u.first_name, u.last_name
+                                FROM students s JOIN users u ON s.user_id = u.id
+                                WHERE s.id = ?""", (student_id,)).fetchone()
+
+        # --- Daily activity for last 30 days (for chart) ---
+        daily_activity = db.execute("""
+            SELECT session_date,
+                   COUNT(*) as sessions,
+                   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                   SUM(correct_answers) as total_correct,
+                   SUM(total_questions) as total_questions,
+                   SUM(active_time_seconds) as total_time
+            FROM daily_sessions
+            WHERE student_id = ? AND session_date >= date('now', '-30 days')
+            GROUP BY session_date
+            ORDER BY session_date
+        """, (student_id,)).fetchall()
+
+        # --- Weekly aggregates for last 4 weeks ---
+        weekly_data = db.execute("""
+            SELECT strftime('%W', session_date) as week_num,
+                   MIN(session_date) as week_start,
+                   MAX(session_date) as week_end,
+                   COUNT(*) as sessions,
+                   SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                   SUM(correct_answers) as total_correct,
+                   SUM(total_questions) as total_questions,
+                   SUM(active_time_seconds) as total_time
+            FROM daily_sessions
+            WHERE student_id = ? AND session_date >= date('now', '-28 days')
+            GROUP BY week_num
+            ORDER BY week_num
+        """, (student_id,)).fetchall()
+
+        # --- Skill mastery progress ---
+        mastery_data = db.execute("""
+            SELECT sk.name, sk.category, ms.mastery_level, ms.attempts_count,
+                   ms.correct_count, ms.theta, ms.last_practiced
+            FROM mastery_signals ms
+            JOIN skills sk ON ms.skill_id = sk.id
+            WHERE ms.student_id = ?
+            ORDER BY sk.order_index
+        """, (student_id,)).fetchall()
+
+        # --- Category averages ---
+        category_data = db.execute("""
+            SELECT sk.category,
+                   ROUND(AVG(ms.mastery_level) * 100, 1) as avg_mastery,
+                   COUNT(*) as skills_count,
+                   SUM(CASE WHEN ms.mastery_level >= 0.9 THEN 1 ELSE 0 END) as mastered
+            FROM mastery_signals ms
+            JOIN skills sk ON ms.skill_id = sk.id
+            WHERE ms.student_id = ?
+            GROUP BY sk.category
+        """, (student_id,)).fetchall()
+
+        # --- Gamification stats ---
+        total_xp = student["total_xp"] or 0
+        lp = level_progress(total_xp)
+
+        # --- Goals & targets ---
+        total_skills = db.execute(
+            "SELECT COUNT(*) as c FROM skills"
+        ).fetchone()["c"]
+        mastered_skills = db.execute(
+            "SELECT COUNT(*) as c FROM mastery_signals WHERE student_id = ? AND mastery_level >= 0.9",
+            (student_id,)
+        ).fetchone()["c"]
+        total_sessions_month = db.execute(
+            "SELECT COUNT(*) as c FROM daily_sessions WHERE student_id = ? AND session_date >= date('now', '-30 days')",
+            (student_id,)
+        ).fetchone()["c"]
+        completed_sessions_month = db.execute(
+            """SELECT COUNT(*) as c FROM daily_sessions 
+               WHERE student_id = ? AND session_date >= date('now', '-30 days') AND status = 'completed'""",
+            (student_id,)
+        ).fetchone()["c"]
+        perfect_sessions_month = db.execute(
+            """SELECT COUNT(*) as c FROM daily_sessions 
+               WHERE student_id = ? AND session_date >= date('now', '-30 days') AND status = 'completed'
+               AND total_questions > 0 AND correct_answers = total_questions""",
+            (student_id,)
+        ).fetchone()["c"]
+
+        # Monthly accuracy trend
+        month_correct = sum(d["total_correct"] or 0 for d in daily_activity)
+        month_total = sum(d["total_questions"] or 0 for d in daily_activity)
+        month_accuracy = round(month_correct / max(1, month_total) * 100, 1)
+        month_time = sum(d["total_time"] or 0 for d in daily_activity)
+
+        return {
+            "student": {
+                "name": f"{student['first_name']} {student['last_name']}",
+                "avatar": student["avatar_url"] or "🧒",
+                **lp,
+                "streak_days": student["streak_days"] or 0,
+                "longest_streak": student["longest_streak"] or 0,
+            },
+            "monthly_summary": {
+                "total_sessions": total_sessions_month,
+                "completed_sessions": completed_sessions_month,
+                "perfect_sessions": perfect_sessions_month,
+                "accuracy": month_accuracy,
+                "total_time_minutes": round(month_time / 60, 1),
+                "days_active": len(daily_activity),
+                "skills_mastered": mastered_skills,
+                "total_skills": total_skills,
+            },
+            "goals": {
+                "sessions_target": 20,
+                "sessions_completed": completed_sessions_month,
+                "sessions_progress": round(min(100, completed_sessions_month / 20 * 100), 1),
+                "accuracy_target": 80,
+                "accuracy_current": month_accuracy,
+                "accuracy_on_track": month_accuracy >= 80,
+                "mastery_target": total_skills,
+                "mastery_current": mastered_skills,
+                "mastery_progress": round(mastered_skills / max(1, total_skills) * 100, 1),
+            },
+            "daily_chart": [dict(d) for d in daily_activity],
+            "weekly_chart": [dict(w) for w in weekly_data],
+            "skills_mastery": [dict(m) for m in mastery_data],
+            "categories": [dict(c) for c in category_data],
+        }
+
+
+@router.get("/child/{student_id}/export-csv")
+async def export_progress_csv(student_id: int, current_user: dict = Depends(require_roles("parent"))):
+    """Export child's progress data as CSV for download."""
+    parent = get_parent(current_user)
+    with get_db() as db:
+        link = db.execute("SELECT * FROM parent_students WHERE parent_id = ? AND student_id = ?",
+                         (parent["id"], student_id)).fetchone()
+        if not link:
+            raise HTTPException(status_code=403, detail="No tienes acceso a este estudiante")
+
+        student = db.execute("""SELECT s.*, u.first_name, u.last_name
+                                FROM students s JOIN users u ON s.user_id = u.id
+                                WHERE s.id = ?""", (student_id,)).fetchone()
+
+        sessions = db.execute("""
+            SELECT ds.session_date, ds.mission_title, sk.name as skill_name,
+                   ds.total_questions, ds.correct_answers, ds.active_time_seconds,
+                   ds.status,
+                   CASE WHEN ds.total_questions > 0 
+                        THEN ROUND(ds.correct_answers * 100.0 / ds.total_questions, 1)
+                        ELSE 0 END as accuracy
+            FROM daily_sessions ds
+            LEFT JOIN skills sk ON ds.target_skill_id = sk.id
+            WHERE ds.student_id = ?
+            ORDER BY ds.session_date DESC
+        """, (student_id,)).fetchall()
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+        writer.writerow(["Fecha", "Misión", "Skill", "Preguntas", "Correctas", "Precisión %", "Tiempo (min)", "Estado"])
+        for s in sessions:
+            writer.writerow([
+                s["session_date"],
+                s["mission_title"] or "",
+                s["skill_name"] or "",
+                s["total_questions"],
+                s["correct_answers"],
+                s["accuracy"],
+                round((s["active_time_seconds"] or 0) / 60, 1),
+                "Completada" if s["status"] == "completed" else "En progreso",
+            ])
+
+        output.seek(0)
+        filename = f"progreso_{student['first_name']}_{student['last_name']}.csv"
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode("utf-8-sig")),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )

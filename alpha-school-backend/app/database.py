@@ -231,6 +231,8 @@ def init_db():
             title TEXT NOT NULL,
             description TEXT,
             icon TEXT DEFAULT '⭐',
+            badge_id TEXT,
+            category TEXT DEFAULT 'special',
             earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
 
@@ -286,6 +288,32 @@ def init_db():
 
         # Flow Engine: additive ALTER TABLE migrations (safe to re-run)
         _run_flow_engine_migrations(db)
+        # Gamification: additive ALTER TABLE migrations
+        _run_gamification_migrations(db)
+
+
+def _run_gamification_migrations(db):
+    """Add gamification columns to existing tables. Safe to call multiple times."""
+    student_cols = {row[1] for row in db.execute("PRAGMA table_info(students)").fetchall()}
+    achievement_cols = {row[1] for row in db.execute("PRAGMA table_info(achievements)").fetchall()}
+
+    # Gamification columns on students
+    if "total_xp" not in student_cols:
+        db.execute("ALTER TABLE students ADD COLUMN total_xp INTEGER DEFAULT 0")
+    if "level" not in student_cols:
+        db.execute("ALTER TABLE students ADD COLUMN level INTEGER DEFAULT 1")
+    if "streak_days" not in student_cols:
+        db.execute("ALTER TABLE students ADD COLUMN streak_days INTEGER DEFAULT 0")
+    if "streak_last_date" not in student_cols:
+        db.execute("ALTER TABLE students ADD COLUMN streak_last_date TEXT")
+    if "longest_streak" not in student_cols:
+        db.execute("ALTER TABLE students ADD COLUMN longest_streak INTEGER DEFAULT 0")
+
+    # Badge tracking columns on achievements
+    if "badge_id" not in achievement_cols:
+        db.execute("ALTER TABLE achievements ADD COLUMN badge_id TEXT")
+    if "category" not in achievement_cols:
+        db.execute("ALTER TABLE achievements ADD COLUMN category TEXT DEFAULT 'special'")
 
 
 def _run_flow_engine_migrations(db):

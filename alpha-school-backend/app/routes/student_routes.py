@@ -17,6 +17,16 @@ from app.services.flow_engine import (
     update_strength,
 )
 from app.services.question_selector import select_next_question
+from app.services.gamification import (
+    calculate_answer_xp,
+    calculate_session_xp,
+    check_badges,
+    level_progress,
+    update_streak,
+    xp_to_level,
+    BADGES,
+    BADGE_MAP,
+)
 
 router = APIRouter(prefix="/api/student", tags=["student"])
 
@@ -438,15 +448,42 @@ async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(requir
         accuracy = (correct_q / total_q * 100) if total_q > 0 else 0
         session_complete = all_answered and accuracy >= 90
         
+        # --- Gamification: XP + Streak ---
+        streak_days = student.get("streak_days") or 0
+        streak_last = student.get("streak_last_date")
+        new_streak, today_str = update_streak(streak_last, streak_days)
+        
+        # Award answer XP
+        answer_xp = calculate_answer_xp(is_correct, new_streak)
+        current_xp = (student.get("total_xp") or 0) + answer_xp
+        new_level = xp_to_level(current_xp)
+        old_level = student.get("level") or 1
+        leveled_up = new_level > old_level
+        
+        # Update student gamification state
+        longest = max(student.get("longest_streak") or 0, new_streak)
+        db.execute(
+            """UPDATE students SET total_xp = ?, level = ?, streak_days = ?, 
+               streak_last_date = ?, longest_streak = ? WHERE id = ?""",
+            (current_xp, new_level, new_streak, today_str, longest, student["id"])
+        )
+        
         if session_complete:
             db.execute("""UPDATE daily_sessions SET status = 'completed', completed_at = datetime('now')
                          WHERE id = ?""", (session["id"],))
-            # Award achievement
-            db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (?, ?, ?, ?)",
-                       (student["id"], "Misión Cumplida", f"¡Dominaste la sesión del día!", "🎯"))
+            # Session completion XP
+            session_xp_info = calculate_session_xp(correct_q, total_q, new_streak)
+            current_xp += session_xp_info["total"]
+            new_level = xp_to_level(current_xp)
+            leveled_up = new_level > old_level
+            db.execute("UPDATE students SET total_xp = ?, level = ? WHERE id = ?",
+                       (current_xp, new_level, student["id"]))
         elif all_answered and accuracy < 90:
             # Need to retry some questions - don't complete yet
             pass
+        
+        # Check for new badges
+        new_badges = check_badges(db, student["id"], current_xp, new_streak)
         
         response = {
             "is_correct": is_correct,
@@ -458,11 +495,18 @@ async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(requir
             "accuracy": round(accuracy, 1),
             "questions_answered": total_q,
             "correct_answers": correct_q,
-            "total_time_seconds": total_time
+            "total_time_seconds": total_time,
+            "xp_earned": answer_xp + (calculate_session_xp(correct_q, total_q, new_streak)["total"] if session_complete else 0),
+            "total_xp": current_xp,
+            "level": new_level,
+            "leveled_up": leveled_up,
+            "streak_days": new_streak,
+            "new_badges": new_badges,
         }
         
         if session_complete:
             response["celebration"] = "🎉 ¡Excelente trabajo! ¡Misión completada!"
+            response["session_xp"] = calculate_session_xp(correct_q, total_q, new_streak)
         
         return response
 
@@ -536,7 +580,70 @@ async def get_achievements(current_user: dict = Depends(require_roles("student")
     with get_db() as db:
         achievements_list = db.execute("SELECT * FROM achievements WHERE student_id = ? ORDER BY earned_at DESC",
                                 (student["id"],)).fetchall()
-        return [dict(a) for a in achievements_list]
+        earned = [dict(a) for a in achievements_list]
+        earned_ids = {a.get("badge_id") for a in earned if a.get("badge_id")}
+        
+        # Include available (unearned) badges
+        available = []
+        for b in BADGES:
+            if b.id not in earned_ids:
+                available.append({
+                    "badge_id": b.id,
+                    "title": b.title,
+                    "description": b.description,
+                    "icon": b.icon,
+                    "category": b.category,
+                    "locked": True,
+                })
+        
+        return {
+            "earned": earned,
+            "available": available,
+            "total_earned": len(earned),
+            "total_available": len(BADGES),
+        }
+
+
+@router.get("/gamification")
+async def get_gamification_stats(current_user: dict = Depends(require_roles("student"))):
+    """Get full gamification state: XP, level, streak, badges."""
+    student = get_student(current_user)
+    with get_db() as db:
+        # Refresh student data
+        s = db.execute("SELECT * FROM students WHERE id = ?", (student["id"],)).fetchone()
+        total_xp = s["total_xp"] or 0
+        streak = s["streak_days"] or 0
+        longest = s["longest_streak"] or 0
+        
+        lp = level_progress(total_xp)
+        
+        # Recent badges (last 5)
+        recent_badges = db.execute(
+            "SELECT * FROM achievements WHERE student_id = ? ORDER BY earned_at DESC LIMIT 5",
+            (student["id"],)
+        ).fetchall()
+        
+        # Stats
+        completed_sessions = db.execute(
+            "SELECT COUNT(*) as c FROM daily_sessions WHERE student_id = ? AND status = 'completed'",
+            (student["id"],)
+        ).fetchone()["c"]
+        
+        perfect_sessions = db.execute(
+            """SELECT COUNT(*) as c FROM daily_sessions 
+               WHERE student_id = ? AND status = 'completed' 
+               AND total_questions > 0 AND correct_answers = total_questions""",
+            (student["id"],)
+        ).fetchone()["c"]
+        
+        return {
+            **lp,
+            "streak_days": streak,
+            "longest_streak": longest,
+            "completed_sessions": completed_sessions,
+            "perfect_sessions": perfect_sessions,
+            "recent_badges": [dict(b) for b in recent_badges],
+        }
 
 @router.post("/help-request")
 async def request_help(current_user: dict = Depends(require_roles("student"))):
