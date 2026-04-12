@@ -87,7 +87,7 @@ export default function PlacementTest() {
         question_id: currentQuestion.id,
         answer: selectedAnswer,
       });
-      setIsCorrect(data.correct);
+      setIsCorrect(data.is_correct);
       setPhase('feedback');
 
       setTimeout(async () => {
