@@ -328,7 +328,7 @@ class ExperimentResult:
             + self.mastery_rate * 25          # students achieving mastery
             + self.engagement_score * 0.25    # engagement (already 0-100)
             + max(0, self.mean_theta_gain / 5)  # learning progress
-            - self.total_frustration_events * 0.5  # frustration penalty
+            - (self.total_frustration_events / max(1, self.num_sessions)) * 0.5  # frustration penalty per session
         )
 
     def summary(self) -> str:
