@@ -44,8 +44,8 @@ composite_score = (
     mean_flow_rate * 30          # questions in optimal difficulty band
     + mastery_rate * 25          # students achieving >= 80% accuracy
     + engagement_score * 0.25    # engagement composite (0-100)
-    + theta_gain / 5             # learning progress
-    - frustration_events * 0.5   # frustration penalty
+    + max(0, mean_theta_gain / 5)  # learning progress (clamped to 0)
+    - (frustration_events / num_sessions) * 0.5  # frustration penalty per session
 )
 ```
 
