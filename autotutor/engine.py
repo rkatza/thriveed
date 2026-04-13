@@ -160,6 +160,7 @@ def select_next_question(
     p_min, p_max = current_flow_band(streak)
     exclude_ids = exclude_ids or set()
 
+    rows: list[dict] = []
     for widen in range(CFG.MAX_WIDENING + 1):
         adj_min = max(0.05, p_min - widen * CFG.BAND_WIDEN_STEP)
         adj_max = min(0.95, p_max + widen * CFG.BAND_WIDEN_STEP)

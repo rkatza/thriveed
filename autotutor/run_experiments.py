@@ -48,7 +48,7 @@ RESULTS_FILE = LOG_DIR / "experiment_results.jsonl"
 BEST_FILE = LOG_DIR / "best_config.json"
 
 
-def log_result(result: ExperimentResult, elapsed_s: float) -> None:
+def log_result(result: ExperimentResult, elapsed_s: float) -> bool:
     """Append result to JSONL log and update best if improved."""
     entry = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
