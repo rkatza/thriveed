@@ -27,18 +27,18 @@ export default function StudentDetail() {
 
       {/* Header */}
       <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm mb-6">
-        <div className="flex items-center gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <span className="text-4xl">{student.avatar_url}</span>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-gray-900">{student.first_name} {student.last_name}</h1>
-            <p className="text-gray-500">{student.email} · {student.age} años · {student.classroom_name || 'Sin salón'}</p>
-            <div className="flex gap-2 mt-2">
+            <p className="text-gray-500 text-sm sm:text-base">{student.email} · {student.age} años · {student.classroom_name || 'Sin salón'}</p>
+            <div className="flex gap-2 mt-2 flex-wrap">
               {interests.map((i: string) => (
                 <span key={i} className="px-2 py-0.5 bg-indigo-50 text-indigo-700 rounded-full text-xs">{i}</span>
               ))}
             </div>
           </div>
-          <div className="ml-auto text-right">
+          <div className="sm:ml-auto text-left sm:text-right">
             <p className="text-sm text-gray-500">Placement Test</p>
             <p className={`text-2xl font-bold ${student.placement_test_completed ? 'text-green-600' : 'text-gray-400'}`}>
               {student.placement_test_completed ? `${student.placement_test_score?.toFixed(0)}%` : 'Pendiente'}
@@ -47,14 +47,14 @@ export default function StudentDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Mastery Map */}
-        <div className="col-span-2 bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+        <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Target size={18} /> Mapa de Mastery</h2>
           <div className="space-y-2">
             {mastery.map((m: any) => (
               <div key={m.skill_id} className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 w-32 truncate">{m.skill_name}</span>
+                <span className="text-xs text-gray-500 w-24 sm:w-32 truncate">{m.skill_name}</span>
                 <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
                   <div className={`h-full rounded-full transition-all ${m.mastery_level >= 0.9 ? 'bg-green-500' : m.mastery_level >= 0.5 ? 'bg-amber-400' : 'bg-red-400'}`}
                     style={{ width: `${m.mastery_level * 100}%` }} />
@@ -87,7 +87,8 @@ export default function StudentDetail() {
       {/* Sessions */}
       <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm mt-6">
         <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><BookOpen size={18} /> Historial de Sesiones</h2>
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-4 py-2 text-xs font-medium text-gray-500">Fecha</th>
@@ -115,6 +116,7 @@ export default function StudentDetail() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Interventions */}

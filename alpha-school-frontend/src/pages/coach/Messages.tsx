@@ -49,7 +49,7 @@ export default function CoachMessages() {
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Mensajes a Padres</h1>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Student selector */}
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-gray-100">
@@ -71,7 +71,7 @@ export default function CoachMessages() {
         </div>
 
         {/* Message area */}
-        <div className="col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
+        <div className="lg:col-span-2 bg-white rounded-xl border border-gray-100 shadow-sm flex flex-col">
           <div className="p-4 border-b border-gray-100">
             <h2 className="font-semibold text-gray-900 flex items-center gap-2">
               <MessageSquare size={18} />

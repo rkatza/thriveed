@@ -21,7 +21,7 @@ export default function CoachSummary() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Resumen del Día</h1>
 
       {/* Stats */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <div className="w-10 h-10 bg-teal-100 rounded-lg flex items-center justify-center mb-3">
             <Users size={20} className="text-teal-600" />
@@ -57,7 +57,8 @@ export default function CoachSummary() {
         <div className="p-5 border-b border-gray-100">
           <h2 className="font-semibold text-gray-900 flex items-center gap-2"><BarChart3 size={18} /> Rendimiento por Estudiante</h2>
         </div>
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Estudiante</th>
@@ -103,6 +104,7 @@ export default function CoachSummary() {
             })}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

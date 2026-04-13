@@ -38,23 +38,23 @@ export default function AdminDashboard() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Panel de Administración</h1>
           <p className="text-gray-500">Piloto ThriveEd Panamá · Matemáticas</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={exportStudents} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition">
-            <Download size={16} /> Exportar Estudiantes
+          <button onClick={exportStudents} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm hover:bg-gray-50 transition">
+            <Download size={16} /> <span className="hidden sm:inline">Exportar</span> Estudiantes
           </button>
-          <button onClick={exportMastery} className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition">
-            <Download size={16} /> Exportar Mastery
+          <button onClick={exportMastery} className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-white border border-gray-200 rounded-lg text-xs sm:text-sm hover:bg-gray-50 transition">
+            <Download size={16} /> <span className="hidden sm:inline">Exportar</span> Mastery
           </button>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         {kpis.map(kpi => (
           <div key={kpi.label} className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <div className="flex items-center justify-between mb-3">
@@ -74,7 +74,7 @@ export default function AdminDashboard() {
           <h2 className="font-semibold text-gray-900">Sesiones Recientes</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[600px]">
             <thead className="bg-gray-50">
               <tr>
                 <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Estudiante</th>

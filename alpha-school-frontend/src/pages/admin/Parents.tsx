@@ -15,7 +15,8 @@ export default function AdminParents() {
     <div>
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Padres de Familia</h1>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[500px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Padre/Madre</th>
@@ -41,6 +42,7 @@ export default function AdminParents() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

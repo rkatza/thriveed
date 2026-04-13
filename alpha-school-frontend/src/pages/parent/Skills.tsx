@@ -52,7 +52,7 @@ export default function ParentSkills() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
         <div className="flex items-center gap-3">
           <Map size={24} className="text-amber-600" />
           <h1 className="text-2xl font-bold text-gray-900">Mapa de Skills de {child?.first_name || ''}</h1>

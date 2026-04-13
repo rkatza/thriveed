@@ -76,14 +76,14 @@ export default function CoachStudentDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Mastery Map */}
-        <div className="col-span-2 bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
+        <div className="lg:col-span-2 bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
           <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><Target size={18} /> Mapa de Mastery</h2>
           <div className="space-y-2">
             {mastery.map((m: any) => (
               <div key={m.skill_id} className="flex items-center gap-3">
-                <span className="text-xs text-gray-500 w-36 truncate">{m.skill_name}</span>
+                <span className="text-xs text-gray-500 w-24 sm:w-36 truncate">{m.skill_name}</span>
                 <div className="flex-1 bg-gray-100 rounded-full h-4 overflow-hidden">
                   <div className={`h-full rounded-full ${m.mastery_level >= 0.9 ? 'bg-green-500' : m.mastery_level >= 0.5 ? 'bg-amber-400' : 'bg-red-400'}`}
                     style={{ width: `${m.mastery_level * 100}%` }} />

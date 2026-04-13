@@ -21,7 +21,7 @@ export default function AdminStudents() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
         <h1 className="text-2xl font-bold text-gray-900">Estudiantes</h1>
         <div className="flex gap-3">
           <div className="relative">
@@ -36,7 +36,8 @@ export default function AdminStudents() {
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Estudiante</th>
@@ -77,6 +78,7 @@ export default function AdminStudents() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

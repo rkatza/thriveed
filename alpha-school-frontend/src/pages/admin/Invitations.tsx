@@ -194,7 +194,7 @@ export default function Invitations() {
           <h2 className="font-semibold text-gray-900">Nueva Invitación</h2>
         </div>
         <form onSubmit={handleSubmit} className="p-5">
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
               <div className="relative">
@@ -223,7 +223,7 @@ export default function Invitations() {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
               <input
@@ -248,7 +248,7 @@ export default function Invitations() {
 
           {/* Conditional fields for student/coach */}
           {(role === 'student' || role === 'coach') && (
-            <div className="grid grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
               {role === 'student' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Nivel Curricular</label>
@@ -305,7 +305,7 @@ export default function Invitations() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[800px]">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Email</th>

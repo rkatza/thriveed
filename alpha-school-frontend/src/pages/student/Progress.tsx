@@ -18,7 +18,7 @@ export default function StudentProgress() {
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Mi Progreso</h1>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <div className="w-10 h-10 bg-indigo-100 rounded-lg flex items-center justify-center mb-3">
             <Target size={20} className="text-indigo-600" />
@@ -57,7 +57,7 @@ export default function StudentProgress() {
         <div className="space-y-3">
           {(data.mastery_by_skill || []).map((s: any) => (
             <div key={s.skill_id} className="flex items-center gap-3">
-              <span className="text-sm text-gray-600 w-48 truncate">{s.skill_name}</span>
+              <span className="text-sm text-gray-600 w-24 sm:w-48 truncate">{s.skill_name}</span>
               <div className="flex-1 bg-gray-100 rounded-full h-5 overflow-hidden">
                 <div className={`h-full rounded-full transition-all flex items-center justify-end pr-2
                   ${s.mastery_level >= 0.9 ? 'bg-green-500' : s.mastery_level >= 0.5 ? 'bg-amber-400' : 'bg-red-400'}`}
@@ -87,12 +87,12 @@ export default function StudentProgress() {
         <h2 className="font-semibold text-gray-900 mb-4">Sesiones Recientes</h2>
         <div className="space-y-3">
           {(data.recent_sessions || []).map((s: any) => (
-            <div key={s.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div>
-                <p className="text-sm font-medium text-gray-900">{s.mission_title}</p>
+            <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-gray-50 rounded-lg gap-2">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">{s.mission_title}</p>
                 <p className="text-xs text-gray-500">{s.session_date} · {s.skill_name}</p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 shrink-0">
                 <span className="text-sm font-medium text-gray-700">{s.correct_answers}/{s.total_questions}</span>
                 <span className={`px-2 py-0.5 text-xs rounded-full ${
                   s.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'

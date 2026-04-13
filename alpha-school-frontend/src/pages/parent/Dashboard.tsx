@@ -85,13 +85,13 @@ export default function ParentDashboard() {
       )}
 
       {/* Header */}
-      <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-6 text-white mb-6">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 sm:p-6 text-white mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">Resumen de {child?.first_name || 'tu hijo/a'}</h1>
             <p className="text-amber-100 mt-1">{child?.classroom_name || 'ThriveEd Panama'}</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             {monthlyReport?.student && (
               <div className="text-center">
                 <div className="flex items-center gap-1 justify-center">
@@ -117,7 +117,7 @@ export default function ParentDashboard() {
       </div>
 
       {/* View Toggle + Export */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-3">
         <div className="flex gap-2">
           <button onClick={() => setShowMonthly(false)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
@@ -142,7 +142,7 @@ export default function ParentDashboard() {
       {showMonthly && monthlyReport ? (
         <div className="space-y-6">
           {/* Goals Progress Cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
               <h3 className="text-sm text-gray-500 mb-2">Sesiones Completadas</h3>
               <div className="flex items-end justify-between">
@@ -186,7 +186,7 @@ export default function ParentDashboard() {
           </div>
 
           {/* Monthly Summary Stats */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-white rounded-xl p-4 border border-gray-100 shadow-sm text-center">
               <p className="text-2xl font-bold text-gray-900">{monthlyReport.monthly_summary.days_active}</p>
               <p className="text-xs text-gray-500">Dias activos</p>
@@ -303,16 +303,16 @@ export default function ParentDashboard() {
         </div>
       ) : (
         /* DAILY VIEW (Original) */
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Today's activity */}
-          <div className="col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-xl p-6 border border-gray-100 shadow-sm">
               <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <BookOpen size={18} /> Hoy
               </h2>
               {today?.session ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div className="p-4 bg-green-50 rounded-xl text-center">
                       <p className="text-2xl font-bold text-green-600">{today.session.correct_answers}/{today.session.total_questions}</p>
                       <p className="text-sm text-gray-500">Ejercicios</p>
