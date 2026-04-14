@@ -54,17 +54,15 @@ export default function SpeakButton({ text, lang = 'es-MX', className = '', size
 
   // Auto-speak when text changes (for kinder students)
   useEffect(() => {
-    if (autoSpeak && text && !hasAutoSpoken.current && voicesReady) {
+    // Reset flag first so every new text gets a chance to auto-speak
+    hasAutoSpoken.current = false;
+
+    if (autoSpeak && text && voicesReady) {
       hasAutoSpoken.current = true;
       const timer = setTimeout(speak, 300);
       return () => clearTimeout(timer);
     }
   }, [autoSpeak, text, voicesReady, speak]);
-
-  // Reset auto-speak flag when text changes
-  useEffect(() => {
-    hasAutoSpoken.current = false;
-  }, [text]);
 
   const stop = useCallback(() => {
     window.speechSynthesis.cancel();
