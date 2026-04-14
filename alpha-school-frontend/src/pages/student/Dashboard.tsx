@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Rocket, Star, Trophy, BookOpen, Target, HelpCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import SpeakButton from '../../components/SpeakButton';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -162,9 +163,9 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main exercise area */}
-        <div className="col-span-2">
+        <div className="lg:col-span-2">
           {exercise ? (
             <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
               {/* Exercise header */}
@@ -184,7 +185,16 @@ export default function StudentDashboard() {
               </div>
 
               {/* Question */}
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">{exercise.question_text}</h2>
+              <div className="flex items-start gap-3 mb-6">
+                <h2 className="text-xl font-semibold text-gray-900 flex-1">{exercise.question_text}</h2>
+                {profile?.curriculum_level === 'kinder' && (
+                  <SpeakButton
+                    text={exercise.question_text || ''}
+                    className="px-3 py-2 shrink-0"
+                    autoSpeak={true}
+                  />
+                )}
+              </div>
 
               {/* Options or numeric input */}
               {(() => {

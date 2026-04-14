@@ -37,8 +37,10 @@ async def login(req: LoginRequest):
         if user["role"] == "student":
             student = db.execute("SELECT * FROM students WHERE user_id = ?", (user["id"],)).fetchone()
             if student:
+                from app.routes.student_routes import get_student_curriculum_level
                 extra = {"student_id": student["id"], "nickname": student["nickname"], "avatar_url": student["avatar_url"],
-                         "placement_test_completed": bool(student["placement_test_completed"])}
+                         "placement_test_completed": bool(student["placement_test_completed"]),
+                         "curriculum_level": get_student_curriculum_level(db, student["id"])}
         elif user["role"] == "coach":
             coach = db.execute("SELECT * FROM coaches WHERE user_id = ?", (user["id"],)).fetchone()
             if coach:
@@ -71,9 +73,11 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         if user["role"] == "student":
             student = db.execute("SELECT * FROM students WHERE user_id = ?", (user["id"],)).fetchone()
             if student:
+                from app.routes.student_routes import get_student_curriculum_level
                 extra = {"student_id": student["id"], "nickname": student["nickname"], "avatar_url": student["avatar_url"],
                          "placement_test_completed": bool(student["placement_test_completed"]),
-                         "interests": student["interests"], "age": student["age"]}
+                         "interests": student["interests"], "age": student["age"],
+                         "curriculum_level": get_student_curriculum_level(db, student["id"])}
         elif user["role"] == "coach":
             coach = db.execute("SELECT * FROM coaches WHERE user_id = ?", (user["id"],)).fetchone()
             if coach:

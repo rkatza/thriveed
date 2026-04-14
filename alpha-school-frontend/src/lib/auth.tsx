@@ -16,6 +16,7 @@ interface User {
   placement_test_completed?: boolean;
   interests?: string;
   age?: number;
+  curriculum_level?: string;
 }
 
 interface AuthContextType {

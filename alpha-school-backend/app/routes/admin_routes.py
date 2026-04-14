@@ -34,6 +34,7 @@ class StudentCreate(BaseModel):
     classroom_id: Optional[int] = None
     age: int = 9
     interests: str = "[]"
+    curriculum_level: Optional[str] = None
 
 class CoachCreate(BaseModel):
     email: str
@@ -230,11 +231,20 @@ async def create_student(req: StudentCreate, current_user: dict = Depends(requir
         existing = db.execute("SELECT id FROM users WHERE email = ?", (req.email,)).fetchone()
         if existing:
             raise HTTPException(status_code=400, detail="Email ya registrado")
+        # Auto-assign classroom based on curriculum_level if not specified
+        classroom_id = req.classroom_id
+        if classroom_id is None and req.curriculum_level:
+            if req.curriculum_level == 'kinder':
+                row = db.execute("SELECT c.id FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE g.level = 0 LIMIT 1").fetchone()
+            else:
+                row = db.execute("SELECT c.id FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE g.level > 0 LIMIT 1").fetchone()
+            if row:
+                classroom_id = row[0]
         db.execute("INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, 'student', ?, ?)",
                    (req.email, hash_password(req.password), req.first_name, req.last_name))
         uid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         db.execute("INSERT INTO students (user_id, classroom_id, nickname, age, interests) VALUES (?, ?, ?, ?, ?)",
-                   (uid, req.classroom_id, req.first_name, req.age, req.interests))
+                   (uid, classroom_id, req.first_name, req.age, req.interests))
         sid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
         db.execute("INSERT INTO audit_log (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)",
                    (current_user["user_id"], "create", "student", sid, f"{req.first_name} {req.last_name}"))

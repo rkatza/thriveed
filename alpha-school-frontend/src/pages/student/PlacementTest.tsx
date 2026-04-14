@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Brain, Star, Sparkles, CheckCircle, XCircle, ArrowRight, Loader2 } from 'lucide-react';
+import SpeakButton from '../../components/SpeakButton';
 
 const INTEREST_OPTIONS = [
   { id: 'deportes', label: 'Deportes', emoji: '⚽' },
@@ -202,7 +203,16 @@ export default function PlacementTest() {
                 Nivel {currentQuestion?.difficulty_level || currentQuestion?.difficulty || 1}
               </span>
             </div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">{currentQuestion?.question_text}</h2>
+            <div className="flex items-start gap-3 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 flex-1">{currentQuestion?.question_text}</h2>
+              {user?.curriculum_level === 'kinder' && (
+                <SpeakButton
+                  text={currentQuestion?.question_text || ''}
+                  className="px-3 py-2 shrink-0"
+                  autoSpeak={true}
+                />
+              )}
+            </div>
 
             {/* Numeric input for questions without predefined options */}
             {isNumeric ? (
