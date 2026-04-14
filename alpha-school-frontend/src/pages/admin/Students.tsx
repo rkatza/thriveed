@@ -11,7 +11,7 @@ export default function AdminStudents() {
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState({
     first_name: '', last_name: '', email: '', password: '',
-    age: 5, classroom_id: 1, interests: '', curriculum_level: 'kinder'
+    age: 5, classroom_id: null as number | null, interests: '', curriculum_level: 'kinder'
   });
   const navigate = useNavigate();
 
@@ -30,7 +30,7 @@ export default function AdminStudents() {
     try {
       await api.post('/api/admin/students', form);
       setShowCreate(false);
-      setForm({ first_name: '', last_name: '', email: '', password: '', age: 5, classroom_id: 1, interests: '', curriculum_level: 'kinder' });
+      setForm({ first_name: '', last_name: '', email: '', password: '', age: 5, classroom_id: null, interests: '', curriculum_level: 'kinder' });
       loadStudents();
     } catch (err: any) {
       alert(err.message || 'Error al crear estudiante');

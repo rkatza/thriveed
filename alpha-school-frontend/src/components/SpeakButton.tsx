@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
 
 interface SpeakButtonProps {
@@ -11,10 +11,24 @@ interface SpeakButtonProps {
 
 export default function SpeakButton({ text, lang = 'es-MX', className = '', size = 20, autoSpeak = false }: SpeakButtonProps) {
   const [speaking, setSpeaking] = useState(false);
+  const [voicesReady, setVoicesReady] = useState(false);
   const hasAutoSpoken = useRef(false);
 
+  // Wait for voices to load (they load async in most browsers)
+  useEffect(() => {
+    if (!window.speechSynthesis) return;
+    const check = () => {
+      if (window.speechSynthesis.getVoices().length > 0) {
+        setVoicesReady(true);
+      }
+    };
+    check();
+    window.speechSynthesis.addEventListener('voiceschanged', check);
+    return () => window.speechSynthesis.removeEventListener('voiceschanged', check);
+  }, []);
+
   const speak = useCallback(() => {
-    if (!text) return;
+    if (!text || !window.speechSynthesis) return;
 
     // Cancel any ongoing speech
     window.speechSynthesis.cancel();
@@ -38,12 +52,19 @@ export default function SpeakButton({ text, lang = 'es-MX', className = '', size
     window.speechSynthesis.speak(utterance);
   }, [text, lang]);
 
-  // Auto-speak on first render for kinder students
-  if (autoSpeak && text && !hasAutoSpoken.current) {
-    hasAutoSpoken.current = true;
-    // Small delay to let component mount
-    setTimeout(speak, 300);
-  }
+  // Auto-speak when text changes (for kinder students)
+  useEffect(() => {
+    if (autoSpeak && text && !hasAutoSpoken.current && voicesReady) {
+      hasAutoSpoken.current = true;
+      const timer = setTimeout(speak, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [autoSpeak, text, voicesReady, speak]);
+
+  // Reset auto-speak flag when text changes
+  useEffect(() => {
+    hasAutoSpoken.current = false;
+  }, [text]);
 
   const stop = useCallback(() => {
     window.speechSynthesis.cancel();
