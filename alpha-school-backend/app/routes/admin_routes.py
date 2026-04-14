@@ -240,6 +240,9 @@ async def create_student(req: StudentCreate, current_user: dict = Depends(requir
                 row = db.execute("SELECT c.id FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE g.level > 0 LIMIT 1").fetchone()
             if row:
                 classroom_id = row[0]
+            else:
+                level_name = "Kinder" if req.curriculum_level == "kinder" else "4to Grado"
+                raise HTTPException(status_code=400, detail=f"No existe un salón para nivel {level_name}. Crea un grado y salón primero.")
         db.execute("INSERT INTO users (email, password_hash, role, first_name, last_name) VALUES (?, ?, 'student', ?, ?)",
                    (req.email, hash_password(req.password), req.first_name, req.last_name))
         uid = db.execute("SELECT last_insert_rowid()").fetchone()[0]
