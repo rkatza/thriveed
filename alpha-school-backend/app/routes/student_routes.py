@@ -715,9 +715,13 @@ def get_session_questions(db, skill_id, student):
     """Get questions for a daily session using Flow Engine selector + spaced repetition."""
     interests = json.loads(student.get("interests", "[]") or "[]")
     
+    # Resolve grade-specific Flow Engine config
+    curriculum_level = get_student_curriculum_level(db, student["id"])
+    grade_cfg = config_for_grade(curriculum_level)
+    
     # Load or create mastery for the target skill
     mastery_row = _load_or_create_mastery(db, student["id"], skill_id)
-    theta = mastery_row["theta"] or CFG.INITIAL_THETA
+    theta = mastery_row["theta"] or grade_cfg.INITIAL_THETA
     streak = StreakState()
     session_id_str = f"mission-{student['id']}-{skill_id}"
     
@@ -736,6 +740,7 @@ def get_session_questions(db, skill_id, student):
             interest_tags=interests,
             session_id=session_id_str,
             exclude_ids=seen_ids,
+            cfg=grade_cfg,
         )
         if q and q["id"] not in seen_ids:
             main_qs.append(q)
@@ -782,15 +787,15 @@ def get_session_questions(db, skill_id, student):
                 pass
         s = decayed_strength(
             r["strength"] or 1.0,
-            r["half_life_days"] or CFG.HALF_LIFE_INIT_DAYS,
+            r["half_life_days"] or grade_cfg.HALF_LIFE_INIT_DAYS,
             last_practiced,
         )
-        if s < CFG.STRENGTH_REVIEW_THRESHOLD:
+        if s < grade_cfg.STRENGTH_REVIEW_THRESHOLD:
             review_candidates.append((s, dict(r)))
     review_candidates.sort(key=lambda x: x[0])  # weakest first
     
     for _, r in review_candidates[:3]:
-        review_theta = r["theta"] or CFG.INITIAL_THETA
+        review_theta = r["theta"] or grade_cfg.INITIAL_THETA
         q = select_next_question(
             conn=db,
             student_id=student["id"],
@@ -800,6 +805,7 @@ def get_session_questions(db, skill_id, student):
             interest_tags=interests,
             session_id=session_id_str,
             exclude_ids=seen_ids,
+            cfg=grade_cfg,
         )
         if q and q["id"] not in seen_ids:
             review_qs.append(q)
