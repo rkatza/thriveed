@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Rocket, Star, Trophy, BookOpen, Target, HelpCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import KinderQuestionCard from '../../components/KinderQuestionCard';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -183,92 +184,138 @@ export default function StudentDashboard() {
                 </button>
               </div>
 
-              {/* Question */}
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">{exercise.question_text}</h2>
-
-              {/* Options or numeric input */}
-              {(() => {
-                const opts = Array.isArray(exercise.options) ? exercise.options : JSON.parse(exercise.options || '[]');
-                const isNumeric = exercise.question_type === 'numeric' || opts.length === 0;
-                
-                if (isNumeric) {
-                  return (
-                    <div className="mb-6">
-                      <div className="flex gap-3">
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={numericAnswer}
-                          onChange={(e) => {
-                            setNumericAnswer(e.target.value);
-                            setSelectedAnswer(e.target.value);
-                          }}
-                          disabled={!!feedback}
-                          placeholder="Escribe tu respuesta..."
-                          className={`flex-1 p-4 rounded-xl border-2 text-lg font-medium transition
-                            ${feedback ? (feedback.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50') :
-                              'border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200'}`}
-                          onKeyDown={(e) => { if (e.key === 'Enter' && selectedAnswer && !feedback) submitAnswer(); }}
-                        />
-                      </div>
-                      {feedback && !feedback.is_correct && (
-                        <p className="mt-2 text-sm text-gray-500">Respuesta correcta: <span className="font-semibold text-green-600">{feedback.correct_answer}</span></p>
-                      )}
-                    </div>
-                  );
-                }
-                
-                return (
-                  <div className="grid grid-cols-1 gap-3 mb-6">
-                    {opts.map((opt: string, idx: number) => {
-                      const isSelected = selectedAnswer === opt;
-                      const showFeedback = feedback !== null;
-                      const isCorrectOption = showFeedback && opt === (feedback.correct_answer || exercise.correct_answer);
-                      const isWrongSelected = showFeedback && isSelected && !feedback.is_correct;
-
-                      return (
-                        <button key={idx}
-                          onClick={() => !feedback && setSelectedAnswer(opt)}
-                          disabled={!!feedback}
-                          className={`p-4 rounded-xl border-2 text-left transition font-medium text-lg
-                            ${isCorrectOption ? 'border-green-500 bg-green-50 text-green-700' :
-                              isWrongSelected ? 'border-red-500 bg-red-50 text-red-700' :
-                              isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
-                              'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
-                          <div className="flex items-center justify-between">
-                            <span>{opt}</span>
-                            {isCorrectOption && <CheckCircle size={20} className="text-green-500" />}
-                            {isWrongSelected && <XCircle size={20} className="text-red-500" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
-
-              {/* Feedback */}
-              {feedback && (
-                <div className={`p-4 rounded-xl mb-4 ${feedback.is_correct ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                  <p className="font-semibold text-lg">
-                    {feedback.is_correct ? '¡Excelente! 🌟' : '¡Casi! 💪'}
-                  </p>
-                  {feedback.explanation && <p className="text-sm mt-1">{feedback.explanation}</p>}
-                  {feedback.xp_earned > 0 && <p className="text-sm mt-1">+{feedback.xp_earned} XP</p>}
-                </div>
-              )}
-
-              {/* Submit / Next button */}
-              {!feedback ? (
-                <button onClick={submitAnswer} disabled={!selectedAnswer || answering}
-                  className="w-full py-4 bg-indigo-600 text-white rounded-xl font-semibold text-lg hover:bg-indigo-700 transition disabled:opacity-50">
-                  {answering ? <Loader2 className="animate-spin mx-auto" /> : 'Confirmar Respuesta'}
-                </button>
+              {/* Kinder visual mode vs standard text mode */}
+              {profile?.curriculum_level === 'kinder' && exercise.options_media ? (
+                <>
+                  <KinderQuestionCard
+                    question={exercise}
+                    onAnswer={(answer) => {
+                      setSelectedAnswer(answer);
+                      // Auto-submit for kinder
+                      (async () => {
+                        setAnswering(true);
+                        try {
+                          const result = await api.post('/api/student/exercise/answer', {
+                            session_id: mission.session?.id || mission.session_id,
+                            question_id: exercise.id,
+                            answer,
+                            time_spent_seconds: 30,
+                          });
+                          setFeedback(result);
+                          setLocalAnswered(prev => prev + 1);
+                        } catch {} finally {
+                          setAnswering(false);
+                        }
+                      })();
+                    }}
+                    feedback={
+                      feedback
+                        ? {
+                            is_correct: feedback.is_correct,
+                            correct_answer: feedback.correct_answer || '',
+                          }
+                        : null
+                    }
+                    disabled={answering}
+                  />
+                  {/* Next button for kinder after feedback */}
+                  {feedback && (
+                    <button onClick={goToNextQuestion}
+                      className="w-full py-5 mt-4 bg-indigo-600 text-white rounded-2xl font-bold text-xl hover:bg-indigo-700 active:scale-[0.98] transition shadow-lg">
+                      Siguiente →
+                    </button>
+                  )}
+                </>
               ) : (
-                <button onClick={goToNextQuestion}
-                  className="w-full py-4 bg-indigo-600 text-white rounded-xl font-semibold text-lg hover:bg-indigo-700 transition">
-                  Siguiente →
-                </button>
+                <>
+                  {/* Question */}
+                  <h2 className="text-xl font-semibold text-gray-900 mb-6">{exercise.question_text}</h2>
+
+                  {/* Options or numeric input */}
+                  {(() => {
+                    const opts = Array.isArray(exercise.options) ? exercise.options : JSON.parse(exercise.options || '[]');
+                    const isNumeric = exercise.question_type === 'numeric' || opts.length === 0;
+                    
+                    if (isNumeric) {
+                      return (
+                        <div className="mb-6">
+                          <div className="flex gap-3">
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              value={numericAnswer}
+                              onChange={(e) => {
+                                setNumericAnswer(e.target.value);
+                                setSelectedAnswer(e.target.value);
+                              }}
+                              disabled={!!feedback}
+                              placeholder="Escribe tu respuesta..."
+                              className={`flex-1 p-4 rounded-xl border-2 text-lg font-medium transition
+                                ${feedback ? (feedback.is_correct ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50') :
+                                  'border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200'}`}
+                              onKeyDown={(e) => { if (e.key === 'Enter' && selectedAnswer && !feedback) submitAnswer(); }}
+                            />
+                          </div>
+                          {feedback && !feedback.is_correct && (
+                            <p className="mt-2 text-sm text-gray-500">Respuesta correcta: <span className="font-semibold text-green-600">{feedback.correct_answer}</span></p>
+                          )}
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="grid grid-cols-1 gap-3 mb-6">
+                        {opts.map((opt: string, idx: number) => {
+                          const isSelected = selectedAnswer === opt;
+                          const showFeedback = feedback !== null;
+                          const isCorrectOption = showFeedback && opt === (feedback.correct_answer || exercise.correct_answer);
+                          const isWrongSelected = showFeedback && isSelected && !feedback.is_correct;
+
+                          return (
+                            <button key={idx}
+                              onClick={() => !feedback && setSelectedAnswer(opt)}
+                              disabled={!!feedback}
+                              className={`p-4 rounded-xl border-2 text-left transition font-medium text-lg
+                                ${isCorrectOption ? 'border-green-500 bg-green-50 text-green-700' :
+                                  isWrongSelected ? 'border-red-500 bg-red-50 text-red-700' :
+                                  isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
+                                  'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                              <div className="flex items-center justify-between">
+                                <span>{opt}</span>
+                                {isCorrectOption && <CheckCircle size={20} className="text-green-500" />}
+                                {isWrongSelected && <XCircle size={20} className="text-red-500" />}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Feedback */}
+                  {feedback && (
+                    <div className={`p-4 rounded-xl mb-4 ${feedback.is_correct ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                      <p className="font-semibold text-lg">
+                        {feedback.is_correct ? '¡Excelente! 🌟' : '¡Casi! 💪'}
+                      </p>
+                      {feedback.explanation && <p className="text-sm mt-1">{feedback.explanation}</p>}
+                      {feedback.xp_earned > 0 && <p className="text-sm mt-1">+{feedback.xp_earned} XP</p>}
+                    </div>
+                  )}
+
+                  {/* Submit / Next button */}
+                  {!feedback ? (
+                    <button onClick={submitAnswer} disabled={!selectedAnswer || answering}
+                      className="w-full py-4 bg-indigo-600 text-white rounded-xl font-semibold text-lg hover:bg-indigo-700 transition disabled:opacity-50">
+                      {answering ? <Loader2 className="animate-spin mx-auto" /> : 'Confirmar Respuesta'}
+                    </button>
+                  ) : (
+                    <button onClick={goToNextQuestion}
+                      className="w-full py-4 bg-indigo-600 text-white rounded-xl font-semibold text-lg hover:bg-indigo-700 transition">
+                      Siguiente →
+                    </button>
+                  )}
+                </>
               )}
             </div>
           ) : (

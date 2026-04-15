@@ -517,4 +517,326 @@ def seed_database():
         db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (1, 'Racha de 3', 'Tres respuestas correctas seguidas', 'fire')")
         db.execute("INSERT INTO achievements (student_id, title, description, icon) VALUES (2, 'Explorador', 'Completaste el placement test', 'map')")
 
+        # ===========================================
+        # KINDER VISUAL + AUDIO MEDIA (PRD §14)
+        # ===========================================
+        _seed_kinder_media(db)
+
         print("Database seeded successfully!")
+
+
+def _seed_kinder_media(db):
+    """Populate question_image_url, options_media, grade_level, locale for every kinder question.
+
+    Uses emoji-based visual representations so kinder students can answer
+    without reading text. Each question gets:
+      - question_image_url: an emoji string representing the visual prompt
+      - options_media: JSON array of {id, label, image} per option
+      - grade_level: 'K'
+      - locale: 'es-419'
+    """
+    # Map question_text prefix → visual data
+    kinder_visuals = {
+        # --- Placement test questions ---
+        "Cuantas manzanas hay": {
+            "image": "🍎🍎🍎",
+            "options": [
+                {"id": "1", "label": "1", "image": "🍎"},
+                {"id": "2", "label": "2", "image": "🍎🍎"},
+                {"id": "3", "label": "3", "image": "🍎🍎🍎"},
+                {"id": "4", "label": "4", "image": "🍎🍎🍎🍎"},
+            ],
+        },
+        "Cuantos dedos hay en una mano": {
+            "image": "✋",
+            "options": [
+                {"id": "3", "label": "3", "image": "3️⃣"},
+                {"id": "4", "label": "4", "image": "4️⃣"},
+                {"id": "5", "label": "5", "image": "5️⃣"},
+                {"id": "10", "label": "10", "image": "🔟"},
+            ],
+        },
+        "Que numero viene despues del 7": {
+            "image": "6️⃣ 7️⃣ ❓",
+            "options": [
+                {"id": "6", "label": "6", "image": "6️⃣"},
+                {"id": "8", "label": "8", "image": "8️⃣"},
+                {"id": "9", "label": "9", "image": "9️⃣"},
+                {"id": "10", "label": "10", "image": "🔟"},
+            ],
+        },
+        "Cual es el numero 4": {
+            "image": "❓ Encuentra el 4",
+            "options": [
+                {"id": "2", "label": "2", "image": "2️⃣"},
+                {"id": "3", "label": "3", "image": "3️⃣"},
+                {"id": "4", "label": "4", "image": "4️⃣"},
+                {"id": "5", "label": "5", "image": "5️⃣"},
+            ],
+        },
+        "Donde hay MAS pelotas": {
+            "image": "⚽⚽  vs  ⚽⚽⚽⚽⚽",
+            "options": [
+                {"id": "Grupo A", "label": "Grupo A", "image": "⚽⚽"},
+                {"id": "Grupo B", "label": "Grupo B", "image": "⚽⚽⚽⚽⚽"},
+                {"id": "Son iguales", "label": "Iguales", "image": "⚖️"},
+                {"id": "No se sabe", "label": "No se", "image": "❓"},
+            ],
+        },
+        "Si tienes 2 galletas y te dan 1 mas": {
+            "image": "🍪🍪 ➕ 🍪",
+            "options": [
+                {"id": "1", "label": "1", "image": "🍪"},
+                {"id": "2", "label": "2", "image": "🍪🍪"},
+                {"id": "3", "label": "3", "image": "🍪🍪🍪"},
+                {"id": "4", "label": "4", "image": "🍪🍪🍪🍪"},
+            ],
+        },
+        "Cuanto es 3 + 2": {
+            "image": "⭐⭐⭐ ➕ ⭐⭐",
+            "options": [
+                {"id": "4", "label": "4", "image": "4️⃣"},
+                {"id": "5", "label": "5", "image": "5️⃣"},
+                {"id": "6", "label": "6", "image": "6️⃣"},
+                {"id": "7", "label": "7", "image": "7️⃣"},
+            ],
+        },
+        "Tienes 4 globos y se revienta 1": {
+            "image": "🎈🎈🎈🎈 ➖ 💥",
+            "options": [
+                {"id": "1", "label": "1", "image": "🎈"},
+                {"id": "2", "label": "2", "image": "🎈🎈"},
+                {"id": "3", "label": "3", "image": "🎈🎈🎈"},
+                {"id": "4", "label": "4", "image": "🎈🎈🎈🎈"},
+            ],
+        },
+        "Cual de estas figuras es un circulo": {
+            "image": "🔍 Encuentra la figura",
+            "options": [
+                {"id": "Cuadrado", "label": "Cuadrado", "image": "🟧"},
+                {"id": "Triangulo", "label": "Triangulo", "image": "🔺"},
+                {"id": "Circulo", "label": "Circulo", "image": "🔵"},
+                {"id": "Rectangulo", "label": "Rectangulo", "image": "🟩"},
+            ],
+        },
+        "Cuantos lados tiene un cuadrado": {
+            "image": "🟧",
+            "options": [
+                {"id": "2", "label": "2", "image": "2️⃣"},
+                {"id": "3", "label": "3", "image": "3️⃣"},
+                {"id": "4", "label": "4", "image": "4️⃣"},
+                {"id": "5", "label": "5", "image": "5️⃣"},
+            ],
+        },
+        "Si el patron es: rojo, azul, rojo, azul": {
+            "image": "🔴🔵🔴🔵 ❓",
+            "options": [
+                {"id": "rojo", "label": "rojo", "image": "🔴"},
+                {"id": "azul", "label": "azul", "image": "🔵"},
+                {"id": "verde", "label": "verde", "image": "🟢"},
+                {"id": "amarillo", "label": "amarillo", "image": "🟡"},
+            ],
+        },
+        # --- Exercise questions ---
+        "Cuenta las estrellas": {
+            "image": "⭐⭐⭐",
+            "options": [
+                {"id": "2", "label": "2", "image": "⭐⭐"},
+                {"id": "3", "label": "3", "image": "⭐⭐⭐"},
+                {"id": "4", "label": "4", "image": "⭐⭐⭐⭐"},
+                {"id": "5", "label": "5", "image": "⭐⭐⭐⭐⭐"},
+            ],
+        },
+        "Cuantos gatos ves": {
+            "image": "🐱🐱",
+            "options": [
+                {"id": "1", "label": "1", "image": "🐱"},
+                {"id": "2", "label": "2", "image": "🐱🐱"},
+                {"id": "3", "label": "3", "image": "🐱🐱🐱"},
+                {"id": "4", "label": "4", "image": "🐱🐱🐱🐱"},
+            ],
+        },
+        "Que numero viene despues del 9": {
+            "image": "8️⃣ 9️⃣ ❓",
+            "options": [
+                {"id": "8", "label": "8", "image": "8️⃣"},
+                {"id": "10", "label": "10", "image": "🔟"},
+                {"id": "11", "label": "11", "image": "1️⃣1️⃣"},
+                {"id": "12", "label": "12", "image": "1️⃣2️⃣"},
+            ],
+        },
+        "Cuenta: 1, 2, 3, __, 5": {
+            "image": "1️⃣ 2️⃣ 3️⃣ ❓ 5️⃣",
+            "options": [
+                {"id": "3", "label": "3", "image": "3️⃣"},
+                {"id": "4", "label": "4", "image": "4️⃣"},
+                {"id": "5", "label": "5", "image": "5️⃣"},
+                {"id": "6", "label": "6", "image": "6️⃣"},
+            ],
+        },
+        "Que numero viene despues del 15": {
+            "image": "1️⃣4️⃣  1️⃣5️⃣  ❓",
+            "options": [
+                {"id": "14", "label": "14", "image": "1️⃣4️⃣"},
+                {"id": "16", "label": "16", "image": "1️⃣6️⃣"},
+                {"id": "17", "label": "17", "image": "1️⃣7️⃣"},
+                {"id": "20", "label": "20", "image": "2️⃣0️⃣"},
+            ],
+        },
+        "Senala el numero 3": {
+            "image": "❓ Encuentra el 3",
+            "options": [
+                {"id": "1", "label": "1", "image": "1️⃣"},
+                {"id": "2", "label": "2", "image": "2️⃣"},
+                {"id": "3", "label": "3", "image": "3️⃣"},
+                {"id": "4", "label": "4", "image": "4️⃣"},
+            ],
+        },
+        "Cual de estos es el numero 8": {
+            "image": "❓ Encuentra el 8",
+            "options": [
+                {"id": "6", "label": "6", "image": "6️⃣"},
+                {"id": "7", "label": "7", "image": "7️⃣"},
+                {"id": "8", "label": "8", "image": "8️⃣"},
+                {"id": "9", "label": "9", "image": "9️⃣"},
+            ],
+        },
+        "3 es mas que 1": {
+            "image": "🍎🍎🍎  vs  🍎",
+            "options": [
+                {"id": "Si", "label": "Si", "image": "✅"},
+                {"id": "No", "label": "No", "image": "❌"},
+            ],
+        },
+        "Cual es mas grande: un elefante o un raton": {
+            "image": "🐘  vs  🐭",
+            "options": [
+                {"id": "Elefante", "label": "Elefante", "image": "🐘"},
+                {"id": "Raton", "label": "Raton", "image": "🐭"},
+            ],
+        },
+        "1 + 1 = ?": {
+            "image": "🌟 ➕ 🌟",
+            "options": [
+                {"id": "1", "label": "1", "image": "🌟"},
+                {"id": "2", "label": "2", "image": "🌟🌟"},
+                {"id": "3", "label": "3", "image": "🌟🌟🌟"},
+                {"id": "4", "label": "4", "image": "🌟🌟🌟🌟"},
+            ],
+        },
+        "2 + 2 = ?": {
+            "image": "🐟🐟 ➕ 🐟🐟",
+            "options": [
+                {"id": "3", "label": "3", "image": "🐟🐟🐟"},
+                {"id": "4", "label": "4", "image": "🐟🐟🐟🐟"},
+                {"id": "5", "label": "5", "image": "🐟🐟🐟🐟🐟"},
+                {"id": "6", "label": "6", "image": "🐟🐟🐟🐟🐟🐟"},
+            ],
+        },
+        "4 + 3 = ?": {
+            "image": "🍓🍓🍓🍓 ➕ 🍓🍓🍓",
+            "options": [
+                {"id": "5", "label": "5", "image": "5️⃣"},
+                {"id": "6", "label": "6", "image": "6️⃣"},
+                {"id": "7", "label": "7", "image": "7️⃣"},
+                {"id": "8", "label": "8", "image": "8️⃣"},
+            ],
+        },
+        "Ana tiene 3 flores y le dan 4 mas": {
+            "image": "🌸🌸🌸 ➕ 🌸🌸🌸🌸",
+            "options": [
+                {"id": "5", "label": "5", "image": "5️⃣"},
+                {"id": "6", "label": "6", "image": "6️⃣"},
+                {"id": "7", "label": "7", "image": "7️⃣"},
+                {"id": "8", "label": "8", "image": "8️⃣"},
+            ],
+        },
+        "3 - 1 = ?": {
+            "image": "🎈🎈🎈 ➖ 🎈",
+            "options": [
+                {"id": "1", "label": "1", "image": "🎈"},
+                {"id": "2", "label": "2", "image": "🎈🎈"},
+                {"id": "3", "label": "3", "image": "🎈🎈🎈"},
+                {"id": "4", "label": "4", "image": "🎈🎈🎈🎈"},
+            ],
+        },
+        "7 - 3 = ?": {
+            "image": "🌟🌟🌟🌟🌟🌟🌟 ➖ 🌟🌟🌟",
+            "options": [
+                {"id": "3", "label": "3", "image": "3️⃣"},
+                {"id": "4", "label": "4", "image": "4️⃣"},
+                {"id": "5", "label": "5", "image": "5️⃣"},
+                {"id": "6", "label": "6", "image": "6️⃣"},
+            ],
+        },
+        "Una pelota tiene forma de": {
+            "image": "⚽ Que forma es?",
+            "options": [
+                {"id": "Cuadrado", "label": "Cuadrado", "image": "🟧"},
+                {"id": "Circulo", "label": "Circulo", "image": "🔵"},
+                {"id": "Triangulo", "label": "Triangulo", "image": "🔺"},
+                {"id": "Rectangulo", "label": "Rectangulo", "image": "🟩"},
+            ],
+        },
+        "Una puerta tiene forma de": {
+            "image": "🚪 Que forma es?",
+            "options": [
+                {"id": "Circulo", "label": "Circulo", "image": "🔵"},
+                {"id": "Triangulo", "label": "Triangulo", "image": "🔺"},
+                {"id": "Rectangulo", "label": "Rectangulo", "image": "🟩"},
+                {"id": "Estrella", "label": "Estrella", "image": "⭐"},
+            ],
+        },
+        "Completa: circulo, cuadrado, circulo, cuadrado": {
+            "image": "🔵🟧🔵🟧 ❓",
+            "options": [
+                {"id": "circulo", "label": "circulo", "image": "🔵"},
+                {"id": "cuadrado", "label": "cuadrado", "image": "🟧"},
+                {"id": "triangulo", "label": "triangulo", "image": "🔺"},
+                {"id": "rectangulo", "label": "rectangulo", "image": "🟩"},
+            ],
+        },
+        "Completa: grande, pequeno, grande, pequeno": {
+            "image": "🐘🐭🐘🐭 ❓",
+            "options": [
+                {"id": "grande", "label": "grande", "image": "🐘"},
+                {"id": "mediano", "label": "mediano", "image": "🐕"},
+                {"id": "pequeno", "label": "pequeno", "image": "🐭"},
+                {"id": "igual", "label": "igual", "image": "⚖️"},
+            ],
+        },
+    }
+
+    # Update all kinder questions with visual data
+    kinder_qs = db.execute(
+        "SELECT id, question_text FROM questions WHERE skill_id >= 101 AND skill_id <= 120"
+    ).fetchall()
+
+    for q in kinder_qs:
+        q_text = q["question_text"]
+        visual = None
+        for prefix, data in kinder_visuals.items():
+            if q_text.startswith(prefix):
+                visual = data
+                break
+
+        if visual:
+            db.execute(
+                """UPDATE questions
+                   SET question_image_url = ?,
+                       options_media = ?,
+                       grade_level = 'K',
+                       locale = 'es-419'
+                   WHERE id = ?""",
+                (
+                    visual["image"],
+                    json.dumps(visual["options"], ensure_ascii=False),
+                    q["id"],
+                ),
+            )
+        else:
+            # Still mark as kinder even without visual match
+            db.execute(
+                "UPDATE questions SET grade_level = 'K', locale = 'es-419' WHERE id = ?",
+                (q["id"],),
+            )

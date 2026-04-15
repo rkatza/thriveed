@@ -37,8 +37,18 @@ async def login(req: LoginRequest):
         if user["role"] == "student":
             student = db.execute("SELECT * FROM students WHERE user_id = ?", (user["id"],)).fetchone()
             if student:
+                # Resolve curriculum_level from classroom -> grade
+                curriculum_level = None
+                if student["classroom_id"]:
+                    cls_row = db.execute(
+                        "SELECT g.name FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
+                        (student["classroom_id"],),
+                    ).fetchone()
+                    if cls_row:
+                        curriculum_level = cls_row["name"]  # 'kinder' or '4to_grado'
                 extra = {"student_id": student["id"], "nickname": student["nickname"], "avatar_url": student["avatar_url"],
-                         "placement_test_completed": bool(student["placement_test_completed"])}
+                         "placement_test_completed": bool(student["placement_test_completed"]),
+                         "curriculum_level": curriculum_level}
         elif user["role"] == "coach":
             coach = db.execute("SELECT * FROM coaches WHERE user_id = ?", (user["id"],)).fetchone()
             if coach:
@@ -71,9 +81,18 @@ async def get_me(current_user: dict = Depends(get_current_user)):
         if user["role"] == "student":
             student = db.execute("SELECT * FROM students WHERE user_id = ?", (user["id"],)).fetchone()
             if student:
+                curriculum_level = None
+                if student["classroom_id"]:
+                    cls_row = db.execute(
+                        "SELECT g.name FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
+                        (student["classroom_id"],),
+                    ).fetchone()
+                    if cls_row:
+                        curriculum_level = cls_row["name"]
                 extra = {"student_id": student["id"], "nickname": student["nickname"], "avatar_url": student["avatar_url"],
                          "placement_test_completed": bool(student["placement_test_completed"]),
-                         "interests": student["interests"], "age": student["age"]}
+                         "interests": student["interests"], "age": student["age"],
+                         "curriculum_level": curriculum_level}
         elif user["role"] == "coach":
             coach = db.execute("SELECT * FROM coaches WHERE user_id = ?", (user["id"],)).fetchone()
             if coach:

@@ -62,6 +62,33 @@ class FlowConfig:
 
 CFG = FlowConfig()
 
+# Grade-specific configurations (PRD §14.6)
+KINDER_CFG = FlowConfig(
+    P_MIN=0.75,
+    P_MAX=0.88,
+    P_MIN_RESCUE=0.88,
+    P_MAX_STRETCH=0.75,
+    K_STUDENT=20.0,
+    RESCUE_AFTER_WRONG_IN_ROW=1,
+    STRETCH_AFTER_RIGHT_IN_ROW=4,
+    STRETCH_FAST_ANSWER_MS=15_000,
+)
+
+_GRADE_CONFIGS: dict[str, FlowConfig] = {
+    "kinder": KINDER_CFG,
+    "K": KINDER_CFG,
+    "4to_grado": CFG,
+    "4": CFG,
+}
+
+
+def config_for_grade(grade_level: str) -> FlowConfig:
+    """Return the FlowConfig tuned for *grade_level*.
+
+    Falls back to the default (4to grado) config for unknown grades.
+    """
+    return _GRADE_CONFIGS.get(grade_level, CFG)
+
 
 # ---------- Elo core -----------------------------------------------------
 
@@ -138,19 +165,23 @@ class StreakState:
     last_answer_ms: Optional[int] = None
 
 
-def current_flow_band(streak: StreakState) -> tuple[float, float]:
+def current_flow_band(
+    streak: StreakState,
+    cfg: FlowConfig | None = None,
+) -> tuple[float, float]:
     """Return (p_min, p_max) adjusted by rescue/stretch streaks."""
-    p_min, p_max = CFG.P_MIN, CFG.P_MAX
+    cfg = cfg or CFG
+    p_min, p_max = cfg.P_MIN, cfg.P_MAX
 
-    if streak.wrong_in_row >= CFG.RESCUE_AFTER_WRONG_IN_ROW:
+    if streak.wrong_in_row >= cfg.RESCUE_AFTER_WRONG_IN_ROW:
         # Rescue: easier questions
-        p_min, p_max = CFG.P_MIN_RESCUE, CFG.P_MIN_RESCUE + 0.10
+        p_min, p_max = cfg.P_MIN_RESCUE, cfg.P_MIN_RESCUE + 0.10
     elif (
-        streak.right_in_row >= CFG.STRETCH_AFTER_RIGHT_IN_ROW
-        and (streak.last_answer_ms or 999_999) < CFG.STRETCH_FAST_ANSWER_MS
+        streak.right_in_row >= cfg.STRETCH_AFTER_RIGHT_IN_ROW
+        and (streak.last_answer_ms or 999_999) < cfg.STRETCH_FAST_ANSWER_MS
     ):
         # Stretch: harder questions
-        p_min, p_max = CFG.P_MAX_STRETCH - 0.10, CFG.P_MAX_STRETCH
+        p_min, p_max = cfg.P_MAX_STRETCH - 0.10, cfg.P_MAX_STRETCH
 
     return p_min, p_max
 

@@ -10,6 +10,7 @@ from app.services.flow_engine import (
     CFG,
     StreakState,
     apply_answer_to_streak,
+    config_for_grade,
     decayed_strength,
     elo_update,
     expected_p_correct,
@@ -281,6 +282,9 @@ def get_next_placement_question(db, difficulty, answered_ids, student):
     result.pop("explanation", None)
     if result.get("options"):
         result["options"] = json.loads(result["options"])
+    # Parse options_media JSON if present (kinder visual questions)
+    if result.get("options_media") and isinstance(result["options_media"], str):
+        result["options_media"] = json.loads(result["options_media"])
     return result
 
 # ---- Daily Mission ----
@@ -807,6 +811,9 @@ def get_session_questions(db, skill_id, student):
         qd = q if isinstance(q, dict) else dict(q)
         if qd.get("options") and isinstance(qd["options"], str):
             qd["options"] = json.loads(qd["options"])
+        # Parse options_media JSON if present (kinder visual questions)
+        if qd.get("options_media") and isinstance(qd["options_media"], str):
+            qd["options_media"] = json.loads(qd["options_media"])
         # Remove internal Flow Engine fields and answer data from response
         qd.pop("_expected_p", None)
         qd.pop("_fallback", None)
