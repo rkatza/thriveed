@@ -149,10 +149,12 @@ def decayed_strength(
 def update_half_life(
     current_half_life: float,
     was_correct: bool,
+    cfg: FlowConfig | None = None,
 ) -> float:
+    cfg = cfg or CFG
     if was_correct:
-        return min(CFG.HALF_LIFE_CAP_DAYS, current_half_life * CFG.HALF_LIFE_ON_CORRECT)
-    return max(0.5, current_half_life * CFG.HALF_LIFE_ON_WRONG)
+        return min(cfg.HALF_LIFE_CAP_DAYS, current_half_life * cfg.HALF_LIFE_ON_CORRECT)
+    return max(0.5, current_half_life * cfg.HALF_LIFE_ON_WRONG)
 
 
 def update_strength(was_correct: bool) -> float:
