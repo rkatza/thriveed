@@ -29,6 +29,7 @@ export default function PlacementTest() {
   const [currentQuestion, setCurrentQuestion] = useState<any>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
   const [questionNum, setQuestionNum] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(20);
   const [loading, setLoading] = useState(false);
@@ -89,6 +90,7 @@ export default function PlacementTest() {
         answer: selectedAnswer,
       });
       setIsCorrect(data.is_correct);
+      setCorrectAnswer(data.correct_answer || null);
       setPhase('feedback');
 
       setTimeout(async () => {
@@ -97,6 +99,7 @@ export default function PlacementTest() {
           setQuestionNum(prev => prev + 1);
           setSelectedAnswer(null);
           setIsCorrect(null);
+          setCorrectAnswer(null);
           setPhase('testing');
         } else {
           const res = await api.get('/api/student/placement-test/results');
@@ -181,6 +184,7 @@ export default function PlacementTest() {
         answer,
       });
       setIsCorrect(data.is_correct);
+      setCorrectAnswer(data.correct_answer || null);
       setPhase('feedback');
 
       setTimeout(async () => {
@@ -189,6 +193,7 @@ export default function PlacementTest() {
           setQuestionNum(prev => prev + 1);
           setSelectedAnswer(null);
           setIsCorrect(null);
+          setCorrectAnswer(null);
           setPhase('testing');
         } else {
           const res = await api.get('/api/student/placement-test/results');
@@ -239,7 +244,7 @@ export default function PlacementTest() {
                 phase === 'feedback'
                   ? {
                       is_correct: isCorrect ?? false,
-                      correct_answer: currentQuestion?.correct_answer || '',
+                      correct_answer: correctAnswer || '',
                     }
                   : null
               }

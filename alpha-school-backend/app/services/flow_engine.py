@@ -92,15 +92,17 @@ def config_for_grade(grade_level: str) -> FlowConfig:
 
 # ---------- Elo core -----------------------------------------------------
 
-def expected_p_correct(theta: float, elo_b: float) -> float:
+def expected_p_correct(theta: float, elo_b: float, cfg: FlowConfig | None = None) -> float:
     """Standard Elo expected score."""
-    return 1.0 / (1.0 + 10.0 ** ((elo_b - theta) / CFG.ELO_DIVISOR))
+    cfg = cfg or CFG
+    return 1.0 / (1.0 + 10.0 ** ((elo_b - theta) / cfg.ELO_DIVISOR))
 
 
-def question_k_factor(times_answered: int) -> float:
+def question_k_factor(times_answered: int, cfg: FlowConfig | None = None) -> float:
     """Damp question movement as it calibrates. Never below 2.0."""
-    damping = CFG.CALIBRATION_ANCHOR / (CFG.CALIBRATION_ANCHOR + times_answered)
-    return max(2.0, CFG.K_QUESTION_BASE * damping)
+    cfg = cfg or CFG
+    damping = cfg.CALIBRATION_ANCHOR / (cfg.CALIBRATION_ANCHOR + times_answered)
+    return max(2.0, cfg.K_QUESTION_BASE * damping)
 
 
 def elo_update(
@@ -108,16 +110,18 @@ def elo_update(
     elo_b: float,
     was_correct: bool,
     times_answered_before: int,
+    cfg: FlowConfig | None = None,
 ) -> tuple[float, float, float]:
     """
     Return (new_theta, new_elo_b, expected_p).
     """
-    expected = expected_p_correct(theta, elo_b)
+    cfg = cfg or CFG
+    expected = expected_p_correct(theta, elo_b, cfg)
     outcome = 1.0 if was_correct else 0.0
 
-    kq = question_k_factor(times_answered_before)
+    kq = question_k_factor(times_answered_before, cfg)
 
-    new_theta = theta + CFG.K_STUDENT * (outcome - expected)
+    new_theta = theta + cfg.K_STUDENT * (outcome - expected)
     # Question moves in the opposite direction
     new_elo_b = elo_b + kq * (expected - outcome)
 

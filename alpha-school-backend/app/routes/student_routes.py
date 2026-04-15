@@ -391,21 +391,26 @@ async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(requir
         skill_id = question["skill_id"]
         mastery_row = _load_or_create_mastery(db, student["id"], skill_id)
         
-        theta_before = mastery_row["theta"] or CFG.INITIAL_THETA
-        b_before = question["elo_b"] if question["elo_b"] is not None else CFG.INITIAL_B
+        # Resolve grade-specific config for Elo update
+        curriculum_level = get_student_curriculum_level(db, student["id"])
+        grade_cfg = config_for_grade(curriculum_level)
+        
+        theta_before = mastery_row["theta"] or grade_cfg.INITIAL_THETA
+        b_before = question["elo_b"] if question["elo_b"] is not None else grade_cfg.INITIAL_B
         times_before = question["times_answered"] if question["times_answered"] is not None else 0
         
-        # Elo update
+        # Elo update (uses grade-specific K_STUDENT)
         new_theta, new_b, expected_p = elo_update(
             theta=theta_before,
             elo_b=b_before,
             was_correct=is_correct,
             times_answered_before=times_before,
+            cfg=grade_cfg,
         )
         
         # Forgetting curve update
         new_hl = update_half_life(
-            mastery_row["half_life_days"] or CFG.HALF_LIFE_INIT_DAYS, is_correct
+            mastery_row["half_life_days"] or grade_cfg.HALF_LIFE_INIT_DAYS, is_correct
         )
         new_strength = update_strength(is_correct)
         now_iso = datetime.now(timezone.utc).isoformat()
