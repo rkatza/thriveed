@@ -91,6 +91,8 @@ async def switch_role(req: SwitchRoleRequest):
         user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
         if not user:
             raise HTTPException(status_code=404, detail="Cuenta demo no encontrada")
+        if not user["is_active"]:
+            raise HTTPException(status_code=403, detail="Cuenta desactivada")
 
         token = create_access_token({
             "user_id": user["id"],
