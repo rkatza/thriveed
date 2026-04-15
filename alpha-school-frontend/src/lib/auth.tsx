@@ -19,15 +19,6 @@ interface User {
   curriculum_level?: string;
 }
 
-// Default accounts per role — used for auto-login when switching roles
-const ROLE_ACCOUNTS: Record<string, { email: string; password: string }> = {
-  admin: { email: 'admin@thriveed.edu.pa', password: 'admin123' },
-  coach: { email: 'coach1@thriveed.edu.pa', password: 'coach123' },
-  student_kinder: { email: 'mateo@thriveed.edu.pa', password: 'student123' },
-  student_4to: { email: 'sofia@thriveed.edu.pa', password: 'student123' },
-  parent: { email: 'padre.martinez@gmail.com', password: 'parent123' },
-};
-
 interface AuthContextType {
   user: User | null;
   token: string | null;
@@ -60,9 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const switchRole = async (roleKey: string) => {
-    const account = ROLE_ACCOUNTS[roleKey];
-    if (!account) throw new Error(`No account configured for role: ${roleKey}`);
-    const data = await api.post('/api/auth/login', { email: account.email, password: account.password });
+    const data = await api.post('/api/auth/switch-role', { role_key: roleKey });
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     setToken(data.token);
