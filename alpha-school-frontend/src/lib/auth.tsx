@@ -19,10 +19,19 @@ interface User {
   curriculum_level?: string;
 }
 
+// Default accounts per role — used for auto-login when switching roles
+const ROLE_ACCOUNTS: Record<string, { email: string; password: string }> = {
+  admin: { email: 'admin@thriveed.edu.pa', password: 'admin123' },
+  coach: { email: 'coach1@thriveed.edu.pa', password: 'coach123' },
+  student_kinder: { email: 'mateo@thriveed.edu.pa', password: 'student123' },
+  student_4to: { email: 'sofia@thriveed.edu.pa', password: 'student123' },
+  parent: { email: 'padre.martinez@gmail.com', password: 'parent123' },
+};
+
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<User>;
+  switchRole: (roleKey: string) => Promise<User>;
   logout: () => void;
   loading: boolean;
 }
@@ -30,7 +39,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   token: null,
-  login: async () => { throw new Error('Not implemented'); },
+  switchRole: async () => { throw new Error('Not implemented'); },
   logout: () => {},
   loading: true,
 });
@@ -50,8 +59,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const data = await api.post('/api/auth/login', { email, password });
+  const switchRole = async (roleKey: string) => {
+    const account = ROLE_ACCOUNTS[roleKey];
+    if (!account) throw new Error(`No account configured for role: ${roleKey}`);
+    const data = await api.post('/api/auth/login', { email: account.email, password: account.password });
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     setToken(data.token);
@@ -67,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, switchRole, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
