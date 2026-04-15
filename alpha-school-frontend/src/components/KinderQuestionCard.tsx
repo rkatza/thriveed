@@ -174,9 +174,7 @@ export default function KinderQuestionCard({
       {/* ── Options grid ── */}
       {hasVisualOptions && (
         <div
-          className={`grid gap-3 mb-4 ${
-            optionsMedia.length <= 2 ? 'grid-cols-2' : 'grid-cols-2'
-          }`}
+          className="grid gap-3 mb-4 grid-cols-2"
         >
           {optionsMedia.map((opt) => {
             const isSelected = selectedOption === opt.id;
