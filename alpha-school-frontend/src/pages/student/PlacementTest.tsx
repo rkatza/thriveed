@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { Brain, Star, Sparkles, CheckCircle, XCircle, ArrowRight, Loader2 } from 'lucide-react';
-import SpeakButton from '../../components/SpeakButton';
+import KinderQuestionCard from '../../components/KinderQuestionCard';
 
 const INTEREST_OPTIONS = [
   { id: 'deportes', label: 'Deportes', emoji: '⚽' },
@@ -29,6 +29,7 @@ export default function PlacementTest() {
   const [currentQuestion, setCurrentQuestion] = useState<any>(null);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
+  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null);
   const [questionNum, setQuestionNum] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(20);
   const [loading, setLoading] = useState(false);
@@ -89,6 +90,7 @@ export default function PlacementTest() {
         answer: selectedAnswer,
       });
       setIsCorrect(data.is_correct);
+      setCorrectAnswer(data.correct_answer || null);
       setPhase('feedback');
 
       setTimeout(async () => {
@@ -97,6 +99,7 @@ export default function PlacementTest() {
           setQuestionNum(prev => prev + 1);
           setSelectedAnswer(null);
           setIsCorrect(null);
+          setCorrectAnswer(null);
           setPhase('testing');
         } else {
           const res = await api.get('/api/student/placement-test/results');
@@ -170,6 +173,43 @@ export default function PlacementTest() {
     );
   }
 
+  // Direct submit helper for kinder (auto-submit on option tap)
+  const submitAnswerDirect = async (answer: string) => {
+    if (!testData) return;
+    setLoading(true);
+    try {
+      const data = await api.post('/api/student/placement-test/answer', {
+        test_id: testData.test_id,
+        question_id: currentQuestion.id,
+        answer,
+      });
+      setIsCorrect(data.is_correct);
+      setCorrectAnswer(data.correct_answer || null);
+      setPhase('feedback');
+
+      setTimeout(async () => {
+        if (data.next_question) {
+          setCurrentQuestion(data.next_question);
+          setQuestionNum(prev => prev + 1);
+          setSelectedAnswer(null);
+          setIsCorrect(null);
+          setCorrectAnswer(null);
+          setPhase('testing');
+        } else {
+          const res = await api.get('/api/student/placement-test/results');
+          setResults(res);
+          setPhase('results');
+        }
+        setLoading(false);
+      }, 1500);
+    } catch {
+      setLoading(false);
+    }
+  };
+
+  // Detect kinder student
+  const isKinder = user?.curriculum_level === 'kinder';
+
   // Testing phase
   if (phase === 'testing' || phase === 'feedback') {
     const rawOptions = currentQuestion?.options || '[]';
@@ -192,94 +232,105 @@ export default function PlacementTest() {
             </div>
           </div>
 
-          {/* Question card */}
-          <div className={`bg-white rounded-3xl p-8 shadow-lg mb-6 transition-all duration-300
-            ${phase === 'feedback' ? (isCorrect ? 'ring-4 ring-green-200' : 'ring-4 ring-red-200') : ''}`}>
-            <div className="flex items-center gap-2 mb-4">
-              <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
-                {currentQuestion?.skill_name || 'Matemáticas'}
-              </span>
-              <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-                Nivel {currentQuestion?.difficulty_level || currentQuestion?.difficulty || 1}
-              </span>
-            </div>
-            <div className="flex items-start gap-3 mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 flex-1">{currentQuestion?.question_text}</h2>
-              {user?.curriculum_level === 'kinder' && (
-                <SpeakButton
-                  text={currentQuestion?.question_text || ''}
-                  className="px-3 py-2 shrink-0"
-                  autoSpeak={true}
-                />
-              )}
-            </div>
+          {/* Question card — Kinder visual mode vs standard text mode */}
+          {isKinder && currentQuestion?.options_media ? (
+            <KinderQuestionCard
+              question={currentQuestion}
+              onAnswer={(answer) => {
+                setSelectedAnswer(answer);
+                submitAnswerDirect(answer);
+              }}
+              feedback={
+                phase === 'feedback'
+                  ? {
+                      is_correct: isCorrect ?? false,
+                      correct_answer: correctAnswer || '',
+                    }
+                  : null
+              }
+              disabled={loading}
+            />
+          ) : (
+            <>
+              <div className={`bg-white rounded-3xl p-8 shadow-lg mb-6 transition-all duration-300
+                ${phase === 'feedback' ? (isCorrect ? 'ring-4 ring-green-200' : 'ring-4 ring-red-200') : ''}`}>
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium">
+                    {currentQuestion?.skill_name || 'Matemáticas'}
+                  </span>
+                  <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+                    Nivel {currentQuestion?.difficulty_level || currentQuestion?.difficulty || 1}
+                  </span>
+                </div>
+                <h2 className="text-xl font-semibold text-gray-900 mb-6">{currentQuestion?.question_text}</h2>
 
-            {/* Numeric input for questions without predefined options */}
-            {isNumeric ? (
-              <div className="space-y-3">
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={selectedAnswer || ''}
-                  onChange={(e) => phase === 'testing' && setSelectedAnswer(e.target.value)}
-                  disabled={phase === 'feedback'}
-                  placeholder="Escribe tu respuesta..."
-                  className={`w-full p-4 rounded-xl border-2 text-lg font-medium text-center transition
-                    ${phase === 'feedback'
-                      ? (isCorrect ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700')
-                      : 'border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-gray-700'}`}
-                />
-                {phase === 'feedback' && !isCorrect && (
-                  <p className="text-sm text-gray-500 text-center">Respuesta correcta: <span className="font-semibold text-green-600">{currentQuestion?.correct_answer}</span></p>
+                {isNumeric ? (
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={selectedAnswer || ''}
+                      onChange={(e) => phase === 'testing' && setSelectedAnswer(e.target.value)}
+                      disabled={phase === 'feedback'}
+                      placeholder="Escribe tu respuesta..."
+                      className={`w-full p-4 rounded-xl border-2 text-lg font-medium text-center transition
+                        ${phase === 'feedback'
+                          ? (isCorrect ? 'border-green-500 bg-green-50 text-green-700' : 'border-red-500 bg-red-50 text-red-700')
+                          : 'border-gray-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 text-gray-700'}`}
+                    />
+                    {phase === 'feedback' && !isCorrect && (
+                      <p className="text-sm text-gray-500 text-center">Respuesta correcta: <span className="font-semibold text-green-600">{currentQuestion?.correct_answer}</span></p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {options.map((opt: string, idx: number) => {
+                      const isSelected = selectedAnswer === opt;
+                      const showResult = phase === 'feedback';
+                      const isOptionCorrect = showResult && opt === currentQuestion?.correct_answer;
+                      const isOptionWrong = showResult && isSelected && !isCorrect;
+
+                      return (
+                        <button key={idx}
+                          onClick={() => phase === 'testing' && setSelectedAnswer(opt)}
+                          disabled={phase === 'feedback'}
+                          className={`p-4 rounded-xl border-2 text-left transition font-medium
+                            ${isOptionCorrect ? 'border-green-500 bg-green-50 text-green-700' :
+                              isOptionWrong ? 'border-red-500 bg-red-50 text-red-700' :
+                              isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
+                              'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
+                          <div className="flex items-center justify-between">
+                            <span>{opt}</span>
+                            {isOptionCorrect && <CheckCircle size={20} className="text-green-500" />}
+                            {isOptionWrong && <XCircle size={20} className="text-red-500" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
                 )}
               </div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3">
-                {options.map((opt: string, idx: number) => {
-                  const isSelected = selectedAnswer === opt;
-                  const showResult = phase === 'feedback';
-                  const isOptionCorrect = showResult && opt === currentQuestion?.correct_answer;
-                  const isOptionWrong = showResult && isSelected && !isCorrect;
 
-                  return (
-                    <button key={idx}
-                      onClick={() => phase === 'testing' && setSelectedAnswer(opt)}
-                      disabled={phase === 'feedback'}
-                      className={`p-4 rounded-xl border-2 text-left transition font-medium
-                        ${isOptionCorrect ? 'border-green-500 bg-green-50 text-green-700' :
-                          isOptionWrong ? 'border-red-500 bg-red-50 text-red-700' :
-                          isSelected ? 'border-indigo-500 bg-indigo-50 text-indigo-700' :
-                          'border-gray-200 hover:border-gray-300 text-gray-700'}`}>
-                      <div className="flex items-center justify-between">
-                        <span>{opt}</span>
-                        {isOptionCorrect && <CheckCircle size={20} className="text-green-500" />}
-                        {isOptionWrong && <XCircle size={20} className="text-red-500" />}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+              {/* Feedback message */}
+              {phase === 'feedback' && (
+                <div className={`text-center p-4 rounded-2xl mb-4 ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                  <p className="font-semibold text-lg">
+                    {isCorrect ? '¡Excelente! 🌟' : '¡Sigue adelante! 💪'}
+                  </p>
+                  <p className="text-sm mt-1">
+                    {isCorrect ? '¡Respuesta correcta!' : 'No te preocupes, esto nos ayuda a conocer tu nivel.'}
+                  </p>
+                </div>
+              )}
 
-          {/* Feedback message */}
-          {phase === 'feedback' && (
-            <div className={`text-center p-4 rounded-2xl mb-4 ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-              <p className="font-semibold text-lg">
-                {isCorrect ? '¡Excelente! 🌟' : '¡Sigue adelante! 💪'}
-              </p>
-              <p className="text-sm mt-1">
-                {isCorrect ? '¡Respuesta correcta!' : 'No te preocupes, esto nos ayuda a conocer tu nivel.'}
-              </p>
-            </div>
-          )}
-
-          {/* Submit button */}
-          {phase === 'testing' && (
-            <button onClick={submitAnswer} disabled={!selectedAnswer || loading}
-              className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-semibold text-lg hover:bg-indigo-700 transition disabled:opacity-50">
-              {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Confirmar Respuesta'}
-            </button>
+              {/* Submit button */}
+              {phase === 'testing' && (
+                <button onClick={submitAnswer} disabled={!selectedAnswer || loading}
+                  className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-semibold text-lg hover:bg-indigo-700 transition disabled:opacity-50">
+                  {loading ? <Loader2 className="animate-spin mx-auto" /> : 'Confirmar Respuesta'}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

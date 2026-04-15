@@ -62,18 +62,47 @@ class FlowConfig:
 
 CFG = FlowConfig()
 
+# Grade-specific configurations (PRD §14.6)
+KINDER_CFG = FlowConfig(
+    P_MIN=0.75,
+    P_MAX=0.88,
+    P_MIN_RESCUE=0.88,
+    P_MAX_STRETCH=0.75,
+    K_STUDENT=20.0,
+    RESCUE_AFTER_WRONG_IN_ROW=1,
+    STRETCH_AFTER_RIGHT_IN_ROW=4,
+    STRETCH_FAST_ANSWER_MS=15_000,
+)
+
+_GRADE_CONFIGS: dict[str, FlowConfig] = {
+    "kinder": KINDER_CFG,
+    "K": KINDER_CFG,
+    "4to_grado": CFG,
+    "4": CFG,
+}
+
+
+def config_for_grade(grade_level: str) -> FlowConfig:
+    """Return the FlowConfig tuned for *grade_level*.
+
+    Falls back to the default (4to grado) config for unknown grades.
+    """
+    return _GRADE_CONFIGS.get(grade_level, CFG)
+
 
 # ---------- Elo core -----------------------------------------------------
 
-def expected_p_correct(theta: float, elo_b: float) -> float:
+def expected_p_correct(theta: float, elo_b: float, cfg: FlowConfig | None = None) -> float:
     """Standard Elo expected score."""
-    return 1.0 / (1.0 + 10.0 ** ((elo_b - theta) / CFG.ELO_DIVISOR))
+    cfg = cfg or CFG
+    return 1.0 / (1.0 + 10.0 ** ((elo_b - theta) / cfg.ELO_DIVISOR))
 
 
-def question_k_factor(times_answered: int) -> float:
+def question_k_factor(times_answered: int, cfg: FlowConfig | None = None) -> float:
     """Damp question movement as it calibrates. Never below 2.0."""
-    damping = CFG.CALIBRATION_ANCHOR / (CFG.CALIBRATION_ANCHOR + times_answered)
-    return max(2.0, CFG.K_QUESTION_BASE * damping)
+    cfg = cfg or CFG
+    damping = cfg.CALIBRATION_ANCHOR / (cfg.CALIBRATION_ANCHOR + times_answered)
+    return max(2.0, cfg.K_QUESTION_BASE * damping)
 
 
 def elo_update(
@@ -81,16 +110,18 @@ def elo_update(
     elo_b: float,
     was_correct: bool,
     times_answered_before: int,
+    cfg: FlowConfig | None = None,
 ) -> tuple[float, float, float]:
     """
     Return (new_theta, new_elo_b, expected_p).
     """
-    expected = expected_p_correct(theta, elo_b)
+    cfg = cfg or CFG
+    expected = expected_p_correct(theta, elo_b, cfg)
     outcome = 1.0 if was_correct else 0.0
 
-    kq = question_k_factor(times_answered_before)
+    kq = question_k_factor(times_answered_before, cfg)
 
-    new_theta = theta + CFG.K_STUDENT * (outcome - expected)
+    new_theta = theta + cfg.K_STUDENT * (outcome - expected)
     # Question moves in the opposite direction
     new_elo_b = elo_b + kq * (expected - outcome)
 
@@ -118,10 +149,12 @@ def decayed_strength(
 def update_half_life(
     current_half_life: float,
     was_correct: bool,
+    cfg: FlowConfig | None = None,
 ) -> float:
+    cfg = cfg or CFG
     if was_correct:
-        return min(CFG.HALF_LIFE_CAP_DAYS, current_half_life * CFG.HALF_LIFE_ON_CORRECT)
-    return max(0.5, current_half_life * CFG.HALF_LIFE_ON_WRONG)
+        return min(cfg.HALF_LIFE_CAP_DAYS, current_half_life * cfg.HALF_LIFE_ON_CORRECT)
+    return max(0.5, current_half_life * cfg.HALF_LIFE_ON_WRONG)
 
 
 def update_strength(was_correct: bool) -> float:
@@ -138,19 +171,23 @@ class StreakState:
     last_answer_ms: Optional[int] = None
 
 
-def current_flow_band(streak: StreakState) -> tuple[float, float]:
+def current_flow_band(
+    streak: StreakState,
+    cfg: FlowConfig | None = None,
+) -> tuple[float, float]:
     """Return (p_min, p_max) adjusted by rescue/stretch streaks."""
-    p_min, p_max = CFG.P_MIN, CFG.P_MAX
+    cfg = cfg or CFG
+    p_min, p_max = cfg.P_MIN, cfg.P_MAX
 
-    if streak.wrong_in_row >= CFG.RESCUE_AFTER_WRONG_IN_ROW:
+    if streak.wrong_in_row >= cfg.RESCUE_AFTER_WRONG_IN_ROW:
         # Rescue: easier questions
-        p_min, p_max = CFG.P_MIN_RESCUE, CFG.P_MIN_RESCUE + 0.10
+        p_min, p_max = cfg.P_MIN_RESCUE, cfg.P_MIN_RESCUE + 0.10
     elif (
-        streak.right_in_row >= CFG.STRETCH_AFTER_RIGHT_IN_ROW
-        and (streak.last_answer_ms or 999_999) < CFG.STRETCH_FAST_ANSWER_MS
+        streak.right_in_row >= cfg.STRETCH_AFTER_RIGHT_IN_ROW
+        and (streak.last_answer_ms or 999_999) < cfg.STRETCH_FAST_ANSWER_MS
     ):
         # Stretch: harder questions
-        p_min, p_max = CFG.P_MAX_STRETCH - 0.10, CFG.P_MAX_STRETCH
+        p_min, p_max = cfg.P_MAX_STRETCH - 0.10, cfg.P_MAX_STRETCH
 
     return p_min, p_max
 
