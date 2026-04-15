@@ -177,7 +177,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Content */}
-      <main className="flex-1 md:ml-64 pt-14 md:pt-0 p-4 sm:p-6 md:p-8">
+      <main className="flex-1 md:ml-64 pt-14 md:pt-0 p-4 sm:pt-14 sm:px-6 sm:pb-6 md:p-8">
         {children}
       </main>
     </div>
