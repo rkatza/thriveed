@@ -41,11 +41,11 @@ async def login(req: LoginRequest):
                 curriculum_level = None
                 if student["classroom_id"]:
                     cls_row = db.execute(
-                        "SELECT g.name FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
+                        "SELECT g.level FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
                         (student["classroom_id"],),
                     ).fetchone()
                     if cls_row:
-                        curriculum_level = cls_row["name"]  # 'kinder' or '4to_grado'
+                        curriculum_level = "kinder" if cls_row["level"] == 0 else "4to_grado"
                 extra = {"student_id": student["id"], "nickname": student["nickname"], "avatar_url": student["avatar_url"],
                          "placement_test_completed": bool(student["placement_test_completed"]),
                          "curriculum_level": curriculum_level}
@@ -84,11 +84,11 @@ async def get_me(current_user: dict = Depends(get_current_user)):
                 curriculum_level = None
                 if student["classroom_id"]:
                     cls_row = db.execute(
-                        "SELECT g.name FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
+                        "SELECT g.level FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
                         (student["classroom_id"],),
                     ).fetchone()
                     if cls_row:
-                        curriculum_level = cls_row["name"]
+                        curriculum_level = "kinder" if cls_row["level"] == 0 else "4to_grado"
                 extra = {"student_id": student["id"], "nickname": student["nickname"], "avatar_url": student["avatar_url"],
                          "placement_test_completed": bool(student["placement_test_completed"]),
                          "interests": student["interests"], "age": student["age"],

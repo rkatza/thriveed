@@ -110,7 +110,7 @@ def select_next_question(
     pool.sort(key=lambda r: (r.get("times_answered") or 0, r["id"]))
     chosen = pool[0]
 
-    expected = expected_p_correct(theta, chosen["elo_b"])
+    expected = expected_p_correct(theta, chosen["elo_b"], cfg)
 
     # Telemetry
     conn.execute(
