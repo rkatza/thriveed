@@ -23,6 +23,7 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   switchRole: (roleKey: string) => Promise<User>;
+  updateUser: (patch: Partial<User>) => void;
   logout: () => void;
   loading: boolean;
 }
@@ -31,6 +32,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   token: null,
   switchRole: async () => { throw new Error('Not implemented'); },
+  updateUser: () => {},
   logout: () => {},
   loading: true,
 });
@@ -59,6 +61,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return data.user;
   };
 
+  const updateUser = (patch: Partial<User>) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const updated = { ...prev, ...patch };
+      localStorage.setItem('user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
@@ -67,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, switchRole, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, switchRole, updateUser, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );
