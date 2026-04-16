@@ -20,3 +20,4 @@ alpha-school-frontend/dist/
 # OS
 .DS_Store
 Thumbs.db
+autotutor/logs/
