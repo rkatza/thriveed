@@ -22,7 +22,7 @@ interface User {
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<User>;
+  switchRole: (roleKey: string) => Promise<User>;
   logout: () => void;
   loading: boolean;
 }
@@ -30,7 +30,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   user: null,
   token: null,
-  login: async () => { throw new Error('Not implemented'); },
+  switchRole: async () => { throw new Error('Not implemented'); },
   logout: () => {},
   loading: true,
 });
@@ -50,8 +50,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setLoading(false);
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const data = await api.post('/api/auth/login', { email, password });
+  const switchRole = async (roleKey: string) => {
+    const data = await api.post('/api/auth/switch-role', { role_key: roleKey });
     localStorage.setItem('token', data.token);
     localStorage.setItem('user', JSON.stringify(data.user));
     setToken(data.token);
@@ -67,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, switchRole, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

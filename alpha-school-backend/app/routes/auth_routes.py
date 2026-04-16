@@ -10,6 +10,9 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+class SwitchRoleRequest(BaseModel):
+    role_key: str
+
 class RegisterRequest(BaseModel):
     email: str
     password: str
@@ -58,6 +61,69 @@ async def login(req: LoginRequest):
             if parent:
                 extra = {"parent_id": parent["id"]}
         
+        return {
+            "token": token,
+            "user": {
+                "id": user["id"],
+                "email": user["email"],
+                "role": user["role"],
+                "first_name": user["first_name"],
+                "last_name": user["last_name"],
+                **extra
+            }
+        }
+
+@router.post("/switch-role")
+async def switch_role(req: SwitchRoleRequest):
+    """Switch to a demo account by role key. No credentials needed from the client."""
+    ROLE_MAP = {
+        "admin": "admin@thriveed.edu.pa",
+        "coach": "coach1@thriveed.edu.pa",
+        "student_kinder": "mateo@thriveed.edu.pa",
+        "student_4to": "sofia@thriveed.edu.pa",
+        "parent": "padre.martinez@gmail.com",
+    }
+    email = ROLE_MAP.get(req.role_key)
+    if not email:
+        raise HTTPException(status_code=400, detail=f"Rol no válido: {req.role_key}")
+
+    with get_db() as db:
+        user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        if not user:
+            raise HTTPException(status_code=404, detail="Cuenta demo no encontrada")
+        if not user["is_active"]:
+            raise HTTPException(status_code=403, detail="Cuenta desactivada")
+
+        token = create_access_token({
+            "user_id": user["id"],
+            "email": user["email"],
+            "role": user["role"]
+        })
+
+        extra = {}
+        if user["role"] == "student":
+            student = db.execute("SELECT * FROM students WHERE user_id = ?", (user["id"],)).fetchone()
+            if student:
+                curriculum_level = None
+                if student["classroom_id"]:
+                    cls_row = db.execute(
+                        "SELECT g.level FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE c.id = ?",
+                        (student["classroom_id"],),
+                    ).fetchone()
+                    if cls_row:
+                        curriculum_level = "kinder" if cls_row["level"] == 0 else "4to_grado"
+                extra = {"student_id": student["id"], "nickname": student["nickname"], "avatar_url": student["avatar_url"],
+                         "placement_test_completed": bool(student["placement_test_completed"]),
+                         "curriculum_level": curriculum_level}
+        elif user["role"] == "coach":
+            coach = db.execute("SELECT * FROM coaches WHERE user_id = ?", (user["id"],)).fetchone()
+            if coach:
+                extra = {"coach_id": coach["id"], "classroom_id": coach["classroom_id"]}
+        elif user["role"] == "parent":
+            parent = db.execute("SELECT * FROM parents WHERE user_id = ?", (user["id"],)).fetchone()
+            if parent:
+                extra = {"parent_id": parent["id"]}
+
         return {
             "token": token,
             "user": {

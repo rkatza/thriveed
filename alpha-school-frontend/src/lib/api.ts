@@ -13,7 +13,7 @@ async function request(path: string, options: RequestInit = {}) {
   if (res.status === 401) {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    window.location.href = '/login';
+    window.location.href = '/';
     throw new Error('No autorizado');
   }
   if (!res.ok) {
