@@ -348,8 +348,8 @@ async def get_daily_mission(current_user: dict = Depends(require_roles("student"
 async def new_practice_session(current_user: dict = Depends(require_roles("student"))):
     """Create a new practice session, advancing to the next skill.
 
-    Marks any existing completed session for today as done and creates a fresh
-    session on the next skill so the student can keep practicing.
+    Creates a fresh daily_sessions row on the next skill so the student can
+    keep practicing after completing their current session.
     """
     student = get_student(current_user)
     with get_db() as db:
