@@ -104,6 +104,10 @@ export default function PlacementTest() {
         } else {
           const res = await api.get('/api/student/placement-test/results');
           setResults(res);
+          // Update cached user so Dashboard doesn't redirect back
+          const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          savedUser.placement_test_completed = true;
+          localStorage.setItem('user', JSON.stringify(savedUser));
           setPhase('results');
         }
         setLoading(false);
@@ -198,6 +202,10 @@ export default function PlacementTest() {
         } else {
           const res = await api.get('/api/student/placement-test/results');
           setResults(res);
+          // Update cached user so Dashboard doesn't redirect back
+          const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
+          savedUser.placement_test_completed = true;
+          localStorage.setItem('user', JSON.stringify(savedUser));
           setPhase('results');
         }
         setLoading(false);
