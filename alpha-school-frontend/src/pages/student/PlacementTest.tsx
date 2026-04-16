@@ -45,10 +45,8 @@ export default function PlacementTest() {
     setLoading(true);
     try {
       await api.post('/api/student/interests', { interests });
-      // Update local user
-      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      savedUser.interests = JSON.stringify(interests);
-      localStorage.setItem('user', JSON.stringify(savedUser));
+      // Update React auth context + localStorage together
+      updateUser({ interests: JSON.stringify(interests) });
       startTest();
     } catch {
       startTest();
