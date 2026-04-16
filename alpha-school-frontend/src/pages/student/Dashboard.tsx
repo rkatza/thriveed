@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
-import { Rocket, Star, Trophy, BookOpen, Target, HelpCircle, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Rocket, Star, Trophy, BookOpen, Target, HelpCircle, Loader2, CheckCircle, XCircle, RefreshCw } from 'lucide-react';
 import KinderQuestionCard from '../../components/KinderQuestionCard';
 
 export default function StudentDashboard() {
@@ -95,6 +95,17 @@ export default function StudentDashboard() {
         // More questions needed - reload
         loadData();
       }
+    }
+  };
+
+  const startNewPractice = async () => {
+    setLoading(true);
+    try {
+      await api.post('/api/student/new-practice-session');
+      await loadData();
+    } catch (err) {
+      console.error(err);
+      setLoading(false);
     }
   };
 
@@ -324,16 +335,23 @@ export default function StudentDashboard() {
                 <Trophy className="w-8 h-8 text-green-600" />
               </div>
               <h2 className="text-2xl font-bold text-gray-900 mb-2">¡Misión Completada! 🎉</h2>
-              <p className="text-gray-500 mb-6">Has completado todos los ejercicios de hoy. ¡Vuelve mañana para tu próxima misión!</p>
-              <div className="flex justify-center gap-4">
-                <button onClick={() => navigate('/student/progress')}
-                  className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-medium hover:bg-indigo-700 transition">
-                  Ver mi progreso
+              <p className="text-gray-500 mb-6">Has completado todos los ejercicios. ¿Quieres seguir practicando?</p>
+              <div className="flex flex-col items-center gap-3">
+                <button onClick={startNewPractice} disabled={loading}
+                  className="w-full max-w-xs px-6 py-4 bg-indigo-600 text-white rounded-xl font-semibold text-lg hover:bg-indigo-700 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                  {loading ? <Loader2 className="animate-spin" size={20} /> : <RefreshCw size={20} />}
+                  Seguir Practicando
                 </button>
-                <button onClick={() => navigate('/student/achievements')}
-                  className="px-6 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition">
-                  Mis logros
-                </button>
+                <div className="flex justify-center gap-3 mt-2">
+                  <button onClick={() => navigate('/student/progress')}
+                    className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition text-sm">
+                    Ver mi progreso
+                  </button>
+                  <button onClick={() => navigate('/student/achievements')}
+                    className="px-5 py-2.5 bg-white border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition text-sm">
+                    Mis logros
+                  </button>
+                </div>
               </div>
             </div>
           )}
