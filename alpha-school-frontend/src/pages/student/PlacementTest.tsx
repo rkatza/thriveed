@@ -21,7 +21,7 @@ const INTEREST_OPTIONS = [
 type Phase = 'welcome' | 'interests' | 'testing' | 'feedback' | 'results';
 
 export default function PlacementTest() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<Phase>('welcome');
   const [interests, setInterests] = useState<string[]>([]);
@@ -45,10 +45,8 @@ export default function PlacementTest() {
     setLoading(true);
     try {
       await api.post('/api/student/interests', { interests });
-      // Update local user
-      const savedUser = JSON.parse(localStorage.getItem('user') || '{}');
-      savedUser.interests = JSON.stringify(interests);
-      localStorage.setItem('user', JSON.stringify(savedUser));
+      // Update React auth context + localStorage together
+      updateUser({ interests: JSON.stringify(interests) });
       startTest();
     } catch {
       startTest();
@@ -104,6 +102,8 @@ export default function PlacementTest() {
         } else {
           const res = await api.get('/api/student/placement-test/results');
           setResults(res);
+          // Update React auth context + localStorage so Dashboard doesn't redirect back
+          updateUser({ placement_test_completed: true });
           setPhase('results');
         }
         setLoading(false);
@@ -198,6 +198,8 @@ export default function PlacementTest() {
         } else {
           const res = await api.get('/api/student/placement-test/results');
           setResults(res);
+          // Update React auth context + localStorage so Dashboard doesn't redirect back
+          updateUser({ placement_test_completed: true });
           setPhase('results');
         }
         setLoading(false);

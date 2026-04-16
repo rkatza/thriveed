@@ -361,6 +361,16 @@ def _run_kinder_media_migrations(db):
           AND skill_id IN (SELECT id FROM skills WHERE curriculum_level = '4to_grado')
     """)
 
+    # Backfill kinder visual media (options_media, question_image_url) for
+    # databases that were seeded before PR #9 added _seed_kinder_media.
+    # Only runs if there are kinder questions missing options_media.
+    missing = db.execute(
+        "SELECT COUNT(*) as c FROM questions WHERE skill_id >= 101 AND skill_id <= 120 AND options_media IS NULL"
+    ).fetchone()["c"]
+    if missing > 0:
+        from app.seed import _seed_kinder_media
+        _seed_kinder_media(db)
+
 
 def _run_flow_engine_migrations(db):
     """Add Flow Engine columns to existing tables. Safe to call multiple times."""

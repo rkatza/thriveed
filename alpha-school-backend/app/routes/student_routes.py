@@ -344,6 +344,52 @@ async def get_daily_mission(current_user: dict = Depends(require_roles("student"
             "total_questions": len(questions)
         }
 
+@router.post("/new-practice-session")
+async def new_practice_session(current_user: dict = Depends(require_roles("student"))):
+    """Create a new practice session, advancing to the next skill.
+
+    Creates a fresh daily_sessions row on the next skill so the student can
+    keep practicing after completing their current session.
+    """
+    student = get_student(current_user)
+    with get_db() as db:
+        # Find next skill to work on
+        target_skill = find_next_skill(db, student["id"])
+        if not target_skill:
+            return {"session": None, "message": "¡Has completado todas las habilidades disponibles!"}
+
+        skill = db.execute("SELECT * FROM skills WHERE id = ?", (target_skill,)).fetchone()
+        mission_titles = [
+            f"¡Sigamos con: {skill['name']}!",
+            f"Práctica extra: {skill['name']}",
+            f"¡Más ejercicios de {skill['name']}!",
+            f"Tu siguiente reto: {skill['name']}",
+        ]
+
+        db.execute(
+            """INSERT INTO daily_sessions (student_id, target_skill_id, mission_title, status)
+               VALUES (?, ?, ?, 'pending')""",
+            (student["id"], target_skill, random.choice(mission_titles)),
+        )
+        session_id = db.execute("SELECT last_insert_rowid()").fetchone()[0]
+
+        session = db.execute(
+            """SELECT ds.*, sk.name as skill_name, sk.category
+               FROM daily_sessions ds LEFT JOIN skills sk ON ds.target_skill_id = sk.id
+               WHERE ds.id = ?""",
+            (session_id,),
+        ).fetchone()
+
+        questions = get_session_questions(db, target_skill, student)
+
+        return {
+            "session": dict(session),
+            "questions": questions,
+            "answered_ids": [],
+            "total_questions": len(questions),
+        }
+
+
 @router.post("/exercise/answer")
 async def answer_exercise(req: AnswerSubmit, current_user: dict = Depends(require_roles("student"))):
     student = get_student(current_user)
