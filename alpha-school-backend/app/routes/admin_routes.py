@@ -237,7 +237,7 @@ async def create_student(req: StudentCreate, current_user: dict = Depends(requir
             if req.curriculum_level == 'kinder':
                 row = db.execute("SELECT c.id FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE g.level = 0 LIMIT 1").fetchone()
             else:
-                row = db.execute("SELECT c.id FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE g.level > 0 LIMIT 1").fetchone()
+                row = db.execute("SELECT c.id FROM classrooms c JOIN grades g ON c.grade_id = g.id WHERE g.level = 4 LIMIT 1").fetchone()
             if row:
                 classroom_id = row[0]
             else:
