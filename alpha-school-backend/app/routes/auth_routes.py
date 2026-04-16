@@ -21,10 +21,11 @@ class RegisterRequest(BaseModel):
 async def login(req: LoginRequest):
     with get_db() as db:
         user = db.execute("SELECT * FROM users WHERE email = ?", (req.email,)).fetchone()
-        if not user or not verify_password(req.password, user["password_hash"]):
+        # Single generic message for invalid credentials, missing user, and
+        # disabled accounts. Returning a different status for "Cuenta desactivada"
+        # would let an attacker confirm which emails have valid credentials.
+        if not user or not verify_password(req.password, user["password_hash"]) or not user["is_active"]:
             raise HTTPException(status_code=401, detail="Email o contraseña incorrectos")
-        if not user["is_active"]:
-            raise HTTPException(status_code=403, detail="Cuenta desactivada")
         
         token = create_access_token({
             "user_id": user["id"],
