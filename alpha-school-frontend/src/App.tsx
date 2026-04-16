@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './lib/auth';
 import Layout from './components/Layout';
-import Login from './pages/Login';
+import RoleSwitcher from './pages/Login';
 
 // Admin pages
 import AdminDashboard from './pages/admin/Dashboard';
@@ -31,11 +31,10 @@ import ParentDashboard from './pages/parent/Dashboard';
 import ParentSkills from './pages/parent/Skills';
 import ParentMessages from './pages/parent/Messages';
 
-function ProtectedRoute({ children, roles }: { children: React.ReactNode; roles?: string[] }) {
-  const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div></div>;
-  if (!user) return <Navigate to="/login" />;
-  if (roles && !roles.includes(user.role)) return <Navigate to="/login" />;
+function RoleGuard({ children, roles }: { children: React.ReactNode; roles: string[] }) {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/" />;
+  if (!roles.includes(user.role)) return <Navigate to="/" />;
   return <>{children}</>;
 }
 
@@ -46,42 +45,43 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={user ? <Navigate to={
+      {/* Role switcher — landing page */}
+      <Route path="/" element={user ? <Navigate to={
         user.role === 'student' ? '/student' :
         user.role === 'coach' ? '/coach' :
         user.role === 'parent' ? '/parent' : '/admin'
-      } /> : <Login />} />
+      } /> : <RoleSwitcher />} />
 
       {/* Admin routes */}
-      <Route path="/admin" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><AdminDashboard /></Layout></ProtectedRoute>} />
-      <Route path="/admin/students" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><AdminStudents /></Layout></ProtectedRoute>} />
-      <Route path="/admin/students/:id" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><StudentDetail /></Layout></ProtectedRoute>} />
-      <Route path="/admin/coaches" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><AdminCoaches /></Layout></ProtectedRoute>} />
-      <Route path="/admin/parents" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><AdminParents /></Layout></ProtectedRoute>} />
-      <Route path="/admin/curriculum" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><Curriculum /></Layout></ProtectedRoute>} />
-      <Route path="/admin/audit" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><AuditLog /></Layout></ProtectedRoute>} />
-      <Route path="/admin/invitations" element={<ProtectedRoute roles={['super_admin', 'admin']}><Layout><Invitations /></Layout></ProtectedRoute>} />
+      <Route path="/admin" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><AdminDashboard /></Layout></RoleGuard>} />
+      <Route path="/admin/students" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><AdminStudents /></Layout></RoleGuard>} />
+      <Route path="/admin/students/:id" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><StudentDetail /></Layout></RoleGuard>} />
+      <Route path="/admin/coaches" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><AdminCoaches /></Layout></RoleGuard>} />
+      <Route path="/admin/parents" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><AdminParents /></Layout></RoleGuard>} />
+      <Route path="/admin/curriculum" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><Curriculum /></Layout></RoleGuard>} />
+      <Route path="/admin/audit" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><AuditLog /></Layout></RoleGuard>} />
+      <Route path="/admin/invitations" element={<RoleGuard roles={['super_admin', 'admin']}><Layout><Invitations /></Layout></RoleGuard>} />
 
       {/* Student routes */}
-      <Route path="/student" element={<ProtectedRoute roles={['student']}><Layout><StudentDashboard /></Layout></ProtectedRoute>} />
-      <Route path="/student/placement-test" element={<ProtectedRoute roles={['student']}><PlacementTest /></ProtectedRoute>} />
-      <Route path="/student/progress" element={<ProtectedRoute roles={['student']}><Layout><StudentProgress /></Layout></ProtectedRoute>} />
-      <Route path="/student/skills" element={<ProtectedRoute roles={['student']}><Layout><StudentSkills /></Layout></ProtectedRoute>} />
-      <Route path="/student/achievements" element={<ProtectedRoute roles={['student']}><Layout><StudentAchievements /></Layout></ProtectedRoute>} />
+      <Route path="/student" element={<RoleGuard roles={['student']}><Layout><StudentDashboard /></Layout></RoleGuard>} />
+      <Route path="/student/placement-test" element={<RoleGuard roles={['student']}><PlacementTest /></RoleGuard>} />
+      <Route path="/student/progress" element={<RoleGuard roles={['student']}><Layout><StudentProgress /></Layout></RoleGuard>} />
+      <Route path="/student/skills" element={<RoleGuard roles={['student']}><Layout><StudentSkills /></Layout></RoleGuard>} />
+      <Route path="/student/achievements" element={<RoleGuard roles={['student']}><Layout><StudentAchievements /></Layout></RoleGuard>} />
 
       {/* Coach routes */}
-      <Route path="/coach" element={<ProtectedRoute roles={['coach']}><Layout><CoachClassroom /></Layout></ProtectedRoute>} />
-      <Route path="/coach/student/:id" element={<ProtectedRoute roles={['coach']}><Layout><CoachStudentDetail /></Layout></ProtectedRoute>} />
-      <Route path="/coach/summary" element={<ProtectedRoute roles={['coach']}><Layout><CoachSummary /></Layout></ProtectedRoute>} />
-      <Route path="/coach/messages" element={<ProtectedRoute roles={['coach']}><Layout><CoachMessages /></Layout></ProtectedRoute>} />
+      <Route path="/coach" element={<RoleGuard roles={['coach']}><Layout><CoachClassroom /></Layout></RoleGuard>} />
+      <Route path="/coach/student/:id" element={<RoleGuard roles={['coach']}><Layout><CoachStudentDetail /></Layout></RoleGuard>} />
+      <Route path="/coach/summary" element={<RoleGuard roles={['coach']}><Layout><CoachSummary /></Layout></RoleGuard>} />
+      <Route path="/coach/messages" element={<RoleGuard roles={['coach']}><Layout><CoachMessages /></Layout></RoleGuard>} />
 
       {/* Parent routes */}
-      <Route path="/parent" element={<ProtectedRoute roles={['parent']}><Layout><ParentDashboard /></Layout></ProtectedRoute>} />
-      <Route path="/parent/skills" element={<ProtectedRoute roles={['parent']}><Layout><ParentSkills /></Layout></ProtectedRoute>} />
-      <Route path="/parent/messages" element={<ProtectedRoute roles={['parent']}><Layout><ParentMessages /></Layout></ProtectedRoute>} />
+      <Route path="/parent" element={<RoleGuard roles={['parent']}><Layout><ParentDashboard /></Layout></RoleGuard>} />
+      <Route path="/parent/skills" element={<RoleGuard roles={['parent']}><Layout><ParentSkills /></Layout></RoleGuard>} />
+      <Route path="/parent/messages" element={<RoleGuard roles={['parent']}><Layout><ParentMessages /></Layout></RoleGuard>} />
 
       {/* Default redirect */}
-      <Route path="*" element={<Navigate to="/login" />} />
+      <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );
 }

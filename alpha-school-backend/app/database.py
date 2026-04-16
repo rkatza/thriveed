@@ -290,6 +290,8 @@ def init_db():
         _run_flow_engine_migrations(db)
         # Gamification: additive ALTER TABLE migrations
         _run_gamification_migrations(db)
+        # Kinder visual+audio media migrations
+        _run_kinder_media_migrations(db)
 
 
 def _run_gamification_migrations(db):
@@ -314,6 +316,50 @@ def _run_gamification_migrations(db):
         db.execute("ALTER TABLE achievements ADD COLUMN badge_id TEXT")
     if "category" not in achievement_cols:
         db.execute("ALTER TABLE achievements ADD COLUMN category TEXT DEFAULT 'special'")
+
+
+def _run_kinder_media_migrations(db):
+    """Add kinder visual/audio media columns to questions + telemetry. Safe to call multiple times."""
+    question_cols = {row[1] for row in db.execute("PRAGMA table_info(questions)").fetchall()}
+    flow_event_cols = {row[1] for row in db.execute("PRAGMA table_info(flow_events)").fetchall()}
+
+    # Media columns on questions
+    if "question_image_url" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN question_image_url TEXT")
+    if "question_audio_url" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN question_audio_url TEXT")
+    if "options_media" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN options_media TEXT")  # JSON
+    if "audio_duration_ms" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN audio_duration_ms INTEGER")
+    if "grade_level" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN grade_level TEXT")
+    if "locale" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN locale TEXT DEFAULT 'es-419'")
+    if "needs_media_review" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN needs_media_review INTEGER DEFAULT 0")
+    if "audio_source" not in question_cols:
+        db.execute("ALTER TABLE questions ADD COLUMN audio_source TEXT DEFAULT 'tts'")
+
+    # Kinder telemetry columns on flow_events
+    if "audio_plays" not in flow_event_cols:
+        db.execute("ALTER TABLE flow_events ADD COLUMN audio_plays INTEGER DEFAULT 0")
+    if "time_to_first_tap_ms" not in flow_event_cols:
+        db.execute("ALTER TABLE flow_events ADD COLUMN time_to_first_tap_ms INTEGER")
+    if "option_audio_previews" not in flow_event_cols:
+        db.execute("ALTER TABLE flow_events ADD COLUMN option_audio_previews INTEGER DEFAULT 0")
+
+    # Backfill grade_level from skill curriculum_level
+    db.execute("""
+        UPDATE questions SET grade_level = 'K'
+        WHERE grade_level IS NULL
+          AND skill_id IN (SELECT id FROM skills WHERE curriculum_level = 'kinder')
+    """)
+    db.execute("""
+        UPDATE questions SET grade_level = '4'
+        WHERE grade_level IS NULL
+          AND skill_id IN (SELECT id FROM skills WHERE curriculum_level = '4to_grado')
+    """)
 
 
 def _run_flow_engine_migrations(db):

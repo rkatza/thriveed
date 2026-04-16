@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
-import { GraduationCap, LogOut, LayoutDashboard, Users, BookOpen, MessageSquare, BarChart3, ClipboardList, Home, Trophy, Map, User, Mail, Menu, X } from 'lucide-react';
+import { GraduationCap, ArrowLeftRight, LayoutDashboard, Users, BookOpen, MessageSquare, BarChart3, ClipboardList, Home, Trophy, Map, User, Mail, Menu, X } from 'lucide-react';
 
 const NAV_ITEMS: Record<string, { label: string; path: string; icon: React.ReactNode }[]> = {
   super_admin: [
@@ -64,9 +64,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = NAV_ITEMS[user.role] || [];
 
-  const handleLogout = () => {
+  const handleSwitchProfile = () => {
     logout();
-    navigate('/login');
+    navigate('/');
   };
 
   const closeSidebar = () => setSidebarOpen(false);
@@ -133,10 +133,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-gray-500 truncate">{user.email}</p>
             </div>
           </div>
-          <button onClick={handleLogout}
-            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition">
-            <LogOut size={16} />
-            Cerrar sesión
+          <button onClick={handleSwitchProfile}
+            className="flex items-center gap-2 w-full px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-50 rounded-lg transition">
+            <ArrowLeftRight size={16} />
+            Cambiar perfil
           </button>
         </div>
       </aside>

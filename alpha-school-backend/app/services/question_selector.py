@@ -19,21 +19,26 @@ from typing import Optional
 
 from app.services.flow_engine import (
     CFG,
+    FlowConfig,
     StreakState,
     current_flow_band,
     expected_p_correct,
 )
 
 
-def _band_to_elo_range(theta: float, p_min: float, p_max: float) -> tuple[float, float]:
+def _band_to_elo_range(
+    theta: float, p_min: float, p_max: float, cfg: FlowConfig | None = None
+) -> tuple[float, float]:
     """
     P = 1 / (1 + 10^((b-theta)/400))
     => b = theta - 400 * log10(P/(1-P))
     Higher P => easier => lower b.
     """
+    elo_div = (cfg or CFG).ELO_DIVISOR
+
     def b_for(p: float) -> float:
         p = min(max(p, 1e-4), 1 - 1e-4)
-        return theta - CFG.ELO_DIVISOR * math.log10(p / (1 - p))
+        return theta - elo_div * math.log10(p / (1 - p))
 
     b_high = b_for(p_min)   # hardest acceptable
     b_low = b_for(p_max)    # easiest acceptable
@@ -49,17 +54,19 @@ def select_next_question(
     interest_tags: Optional[list[str]] = None,
     session_id: Optional[str] = None,
     exclude_ids: Optional[set[int]] = None,
+    cfg: Optional[FlowConfig] = None,
 ) -> Optional[dict]:
-    p_min, p_max = current_flow_band(streak)
+    cfg = cfg or CFG
+    p_min, p_max = current_flow_band(streak, cfg)
     interest_tags = interest_tags or []
     exclude_ids = exclude_ids or set()
 
     rows = []
     fallback_used = 0
-    for widen in range(CFG.MAX_WIDENING + 1):
-        adj_min = max(0.05, p_min - widen * CFG.BAND_WIDEN_STEP)
-        adj_max = min(0.95, p_max + widen * CFG.BAND_WIDEN_STEP)
-        b_low, b_high = _band_to_elo_range(theta, adj_min, adj_max)
+    for widen in range(cfg.MAX_WIDENING + 1):
+        adj_min = max(0.05, p_min - widen * cfg.BAND_WIDEN_STEP)
+        adj_max = min(0.95, p_max + widen * cfg.BAND_WIDEN_STEP)
+        b_low, b_high = _band_to_elo_range(theta, adj_min, adj_max, cfg)
 
         cur = conn.execute(
             """
@@ -103,7 +110,7 @@ def select_next_question(
     pool.sort(key=lambda r: (r.get("times_answered") or 0, r["id"]))
     chosen = pool[0]
 
-    expected = expected_p_correct(theta, chosen["elo_b"])
+    expected = expected_p_correct(theta, chosen["elo_b"], cfg)
 
     # Telemetry
     conn.execute(
