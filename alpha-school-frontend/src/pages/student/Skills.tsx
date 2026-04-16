@@ -41,7 +41,7 @@ export default function StudentSkills() {
         <h1 className="text-2xl font-bold text-gray-900">Mapa de Skills</h1>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
         {categories.map(cat => {
           const catSkills = skills.filter(s => s.category === cat);
           const colors = CATEGORY_COLORS[cat] || { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' };

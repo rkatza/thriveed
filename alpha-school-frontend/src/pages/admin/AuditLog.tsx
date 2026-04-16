@@ -19,7 +19,8 @@ export default function AuditLog() {
         <h1 className="text-2xl font-bold text-gray-900">Registro de Auditoría</h1>
       </div>
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-        <table className="w-full">
+        <div className="overflow-x-auto">
+        <table className="w-full min-w-[600px]">
           <thead className="bg-gray-50">
             <tr>
               <th className="text-left px-5 py-3 text-xs font-medium text-gray-500 uppercase">Fecha</th>
@@ -51,6 +52,7 @@ export default function AuditLog() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

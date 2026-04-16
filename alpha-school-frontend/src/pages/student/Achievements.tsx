@@ -85,8 +85,8 @@ export default function StudentAchievements() {
       )}
 
       {/* Header with Level & Stats */}
-      <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-6 text-white mb-6">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-r from-amber-500 to-orange-500 rounded-2xl p-4 sm:p-6 text-white mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-1">
               <Trophy size={24} />
@@ -97,25 +97,25 @@ export default function StudentAchievements() {
             </p>
           </div>
           {stats && (
-            <div className="flex items-center gap-6">
+            <div className="flex items-center gap-4 sm:gap-6">
               <div className="text-center">
                 <div className="flex items-center gap-1 justify-center">
                   <Flame size={18} className="text-yellow-200" />
-                  <span className="text-2xl font-bold">{stats.streak_days}</span>
+                  <span className="text-xl sm:text-2xl font-bold">{stats.streak_days}</span>
                 </div>
                 <p className="text-xs text-amber-200">Racha</p>
               </div>
               <div className="text-center">
                 <div className="flex items-center gap-1 justify-center">
                   <Star size={18} className="text-yellow-200" />
-                  <span className="text-2xl font-bold">{stats.completed_sessions}</span>
+                  <span className="text-xl sm:text-2xl font-bold">{stats.completed_sessions}</span>
                 </div>
                 <p className="text-xs text-amber-200">Sesiones</p>
               </div>
               <div className="text-center">
                 <div className="flex items-center gap-1 justify-center">
                   <Sparkles size={18} className="text-yellow-200" />
-                  <span className="text-2xl font-bold">{stats.perfect_sessions}</span>
+                  <span className="text-xl sm:text-2xl font-bold">{stats.perfect_sessions}</span>
                 </div>
                 <p className="text-xs text-amber-200">Perfectas</p>
               </div>
@@ -152,7 +152,7 @@ export default function StudentAchievements() {
           </div>
 
           {/* Streak & Stats Row */}
-          <div className="grid grid-cols-4 gap-4 mt-5 pt-5 border-t border-gray-100">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 pt-5 border-t border-gray-100">
             <div className="text-center">
               <div className="text-2xl mb-1">&#x1F525;</div>
               <div className="text-lg font-bold text-gray-900">{stats.streak_days}</div>

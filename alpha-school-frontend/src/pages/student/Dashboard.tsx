@@ -120,8 +120,8 @@ export default function StudentDashboard() {
   return (
     <div>
       {/* Header */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white mb-6">
-        <div className="flex items-center justify-between">
+      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-4 sm:p-6 text-white mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold">¡Hola {user?.first_name}! 🚀</h1>
             <p className="text-indigo-100 mt-1">
@@ -163,9 +163,9 @@ export default function StudentDashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main exercise area */}
-        <div className="col-span-2">
+        <div className="lg:col-span-2">
           {exercise ? (
             <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm">
               {/* Exercise header */}

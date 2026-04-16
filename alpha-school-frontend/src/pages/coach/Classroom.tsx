@@ -84,23 +84,25 @@ export default function CoachClassroom() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Mi Salón en Vivo</h1>
           <p className="text-gray-500">· {data.students?.length || 0} estudiantes</p>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
           <button onClick={() => setShowInsights(!showInsights)}
             className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition
               ${showInsights ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-700 hover:bg-teal-100'}`}>
             <BarChart3 size={14} /> Insights
           </button>
-          {Object.entries(STATUS_COLORS).map(([key, val]) => (
-            <div key={key} className="flex items-center gap-1.5">
-              <div className={`w-3 h-3 rounded-full ${val.bg}`} />
-              <span className="text-xs text-gray-500">{val.label}</span>
-            </div>
-          ))}
+          <div className="hidden sm:flex items-center gap-4">
+            {Object.entries(STATUS_COLORS).map(([key, val]) => (
+              <div key={key} className="flex items-center gap-1.5">
+                <div className={`w-3 h-3 rounded-full ${val.bg}`} />
+                <span className="text-xs text-gray-500">{val.label}</span>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -217,7 +219,7 @@ export default function CoachClassroom() {
 
       {/* Insights Panel */}
       {showInsights && insights && (
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
           {/* Leaderboard */}
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
@@ -268,7 +270,7 @@ export default function CoachClassroom() {
       )}
 
       {/* Student grid */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {(data.students || []).map((s: any) => {
           const status = STATUS_COLORS[s.status] || STATUS_COLORS.gray;
           const isRescue = alerts?.rescue_alerts.some(r => r.student_id === s.student_id);
