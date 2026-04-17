@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import init_db
@@ -10,13 +11,15 @@ from app.routes.parent_routes import router as parent_router
 
 app = FastAPI(title="ThriveEd", version="1.0.0")
 
-# Disable CORS. Do not remove this for full-stack development.
+_cors_origins = os.environ.get("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
+allowed_origins = [o.strip() for o in _cors_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins
+    allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Include routers

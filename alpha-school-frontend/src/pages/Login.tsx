@@ -3,14 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { GraduationCap, Eye, EyeOff } from 'lucide-react';
 
-const DEMO_ACCOUNTS = [
-  { label: 'Admin', email: 'admin@thriveed.edu.pa', password: 'admin123', icon: '👔' },
-  { label: 'Coach María', email: 'coach1@thriveed.edu.pa', password: 'coach123', icon: '👩‍🏫' },
-  { label: 'Sofía (4to Grado)', email: 'sofia@thriveed.edu.pa', password: 'student123', icon: '🧒' },
-  { label: 'Diego (4to Grado)', email: 'diego@thriveed.edu.pa', password: 'student123', icon: '👦' },
-  { label: 'Mateo (Kinder)', email: 'mateo@thriveed.edu.pa', password: 'student123', icon: '👦' },
-  { label: 'Roberto (Padre)', email: 'padre.martinez@gmail.com', password: 'parent123', icon: '👨' },
-];
+// Demo accounts are only available in development builds. The constant is
+// referenced only inside an `import.meta.env.DEV` gate, so Vite eliminates
+// it from production bundles and the credentials never ship to users.
+const DEMO_ACCOUNTS = import.meta.env.DEV
+  ? [
+      { label: 'Admin', email: 'admin@thriveed.edu.pa', password: 'admin123', icon: '👔' },
+      { label: 'Coach María', email: 'coach1@thriveed.edu.pa', password: 'coach123', icon: '👩‍🏫' },
+      { label: 'Sofía (4to Grado)', email: 'sofia@thriveed.edu.pa', password: 'student123', icon: '🧒' },
+      { label: 'Diego (4to Grado)', email: 'diego@thriveed.edu.pa', password: 'student123', icon: '👦' },
+      { label: 'Mateo (Kinder)', email: 'mateo@thriveed.edu.pa', password: 'student123', icon: '👦' },
+      { label: 'Roberto (Padre)', email: 'padre.martinez@gmail.com', password: 'parent123', icon: '👨' },
+    ]
+  : [];
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -94,22 +99,23 @@ export default function Login() {
           </form>
         </div>
 
-        {/* Demo accounts */}
-        <div className="mt-6 bg-white/70 backdrop-blur rounded-2xl p-6">
-          <p className="text-sm font-medium text-gray-500 mb-3 text-center">Cuentas demo para probar</p>
-          <div className="grid grid-cols-2 gap-2">
-            {DEMO_ACCOUNTS.map(acc => (
-              <button
-                key={acc.email}
-                onClick={() => handleLogin(undefined, acc.email, acc.password)}
-                className="flex items-center gap-2 px-3 py-2 text-sm bg-white rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition text-left"
-              >
-                <span className="text-lg">{acc.icon}</span>
-                <span className="text-gray-700 truncate">{acc.label}</span>
-              </button>
-            ))}
+        {import.meta.env.DEV && (
+          <div className="mt-6 bg-white/70 backdrop-blur rounded-2xl p-6">
+            <p className="text-sm font-medium text-gray-500 mb-3 text-center">Cuentas demo para probar (solo dev)</p>
+            <div className="grid grid-cols-2 gap-2">
+              {DEMO_ACCOUNTS.map(acc => (
+                <button
+                  key={acc.email}
+                  onClick={() => handleLogin(undefined, acc.email, acc.password)}
+                  className="flex items-center gap-2 px-3 py-2 text-sm bg-white rounded-lg border border-gray-200 hover:border-indigo-300 hover:bg-indigo-50 transition text-left"
+                >
+                  <span className="text-lg">{acc.icon}</span>
+                  <span className="text-gray-700 truncate">{acc.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

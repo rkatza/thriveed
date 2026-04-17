@@ -184,10 +184,12 @@ async def list_students(classroom_id: Optional[int] = None, current_user: dict =
                    JOIN users u ON s.user_id = u.id
                    LEFT JOIN classrooms c ON s.classroom_id = c.id
                    LEFT JOIN grades g ON c.grade_id = g.id"""
+        params: tuple = ()
         if classroom_id:
-            query += f" WHERE s.classroom_id = {classroom_id}"
+            query += " WHERE s.classroom_id = ?"
+            params = (classroom_id,)
         query += " ORDER BY u.last_name, u.first_name"
-        students = db.execute(query).fetchall()
+        students = db.execute(query, params).fetchall()
         return [dict(s) for s in students]
 
 @router.get("/students/{student_id}")
